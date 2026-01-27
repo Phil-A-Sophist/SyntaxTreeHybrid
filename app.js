@@ -74,11 +74,11 @@ function setupPaletteDragDrop(canvasManager) {
 
     try {
       const dropData = JSON.parse(data);
-      const rect = this.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
 
-      canvasManager.handleDrop(dropData, x, y);
+      // Get pointer coordinates transformed for zoom/pan
+      const pointer = canvasManager.canvas.getPointer(e, true);
+
+      canvasManager.handleDrop(dropData, pointer.x, pointer.y);
     } catch (error) {
       console.error('Drop error:', error);
     }

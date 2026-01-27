@@ -19,6 +19,9 @@ const NodeColors = {
   DC: { bg: '#ffffff', text: '#000000', border: '#333333' },
   RC: { bg: '#ffffff', text: '#000000', border: '#333333' },
   CC: { bg: '#ffffff', text: '#000000', border: '#333333' },
+  CP: { bg: '#ffffff', text: '#000000', border: '#333333' },
+  IP: { bg: '#ffffff', text: '#000000', border: '#333333' },
+  TP: { bg: '#ffffff', text: '#000000', border: '#333333' },
 
   // Phrases - colored
   NP: { bg: '#F1948A', text: '#000000', border: '#333333' },
@@ -26,8 +29,9 @@ const NodeColors = {
   PP: { bg: '#D7BDE2', text: '#000000', border: '#333333' },
   ADJP: { bg: '#F7DC6F', text: '#000000', border: '#333333' },
   ADVP: { bg: '#85C1E9', text: '#000000', border: '#333333' },
+  DP: { bg: '#F5B7B1', text: '#000000', border: '#333333' },
 
-  // POS - colored
+  // POS - colored (full names)
   NOUN: { bg: '#E74C3C', text: '#000000', border: '#333333' },
   VERB: { bg: '#27AE60', text: '#000000', border: '#333333' },
   ADJ: { bg: '#F1C40F', text: '#000000', border: '#333333' },
@@ -42,6 +46,43 @@ const NodeColors = {
   REL: { bg: '#FCF3CF', text: '#000000', border: '#333333' },
   COMP: { bg: '#FADBD8', text: '#000000', border: '#333333' },
 
+  // POS - common single-letter abbreviations (same colors as full names)
+  N: { bg: '#E74C3C', text: '#000000', border: '#333333' },    // Noun
+  V: { bg: '#27AE60', text: '#000000', border: '#333333' },    // Verb
+  A: { bg: '#F1C40F', text: '#000000', border: '#333333' },    // Adjective
+  P: { bg: '#7D3C98', text: '#000000', border: '#333333' },    // Preposition
+  D: { bg: '#F39C12', text: '#000000', border: '#333333' },    // Determiner
+  C: { bg: '#95A5A6', text: '#000000', border: '#333333' },    // Conjunction/Complementizer
+  T: { bg: '#16A085', text: '#000000', border: '#333333' },    // Tense
+  I: { bg: '#16A085', text: '#000000', border: '#333333' },    // Inflection
+
+  // Penn Treebank style POS tags
+  NN: { bg: '#E74C3C', text: '#000000', border: '#333333' },   // Noun
+  NNS: { bg: '#E74C3C', text: '#000000', border: '#333333' },  // Noun plural
+  NNP: { bg: '#E74C3C', text: '#000000', border: '#333333' },  // Proper noun
+  NNPS: { bg: '#E74C3C', text: '#000000', border: '#333333' }, // Proper noun plural
+  VB: { bg: '#27AE60', text: '#000000', border: '#333333' },   // Verb base
+  VBD: { bg: '#27AE60', text: '#000000', border: '#333333' },  // Verb past tense
+  VBG: { bg: '#27AE60', text: '#000000', border: '#333333' },  // Verb gerund
+  VBN: { bg: '#27AE60', text: '#000000', border: '#333333' },  // Verb past participle
+  VBP: { bg: '#27AE60', text: '#000000', border: '#333333' },  // Verb non-3rd person
+  VBZ: { bg: '#27AE60', text: '#000000', border: '#333333' },  // Verb 3rd person singular
+  JJ: { bg: '#F1C40F', text: '#000000', border: '#333333' },   // Adjective
+  JJR: { bg: '#F1C40F', text: '#000000', border: '#333333' },  // Adjective comparative
+  JJS: { bg: '#F1C40F', text: '#000000', border: '#333333' },  // Adjective superlative
+  RB: { bg: '#3498DB', text: '#000000', border: '#333333' },   // Adverb
+  RBR: { bg: '#3498DB', text: '#000000', border: '#333333' },  // Adverb comparative
+  RBS: { bg: '#3498DB', text: '#000000', border: '#333333' },  // Adverb superlative
+  IN: { bg: '#7D3C98', text: '#000000', border: '#333333' },   // Preposition/subordinating conj
+  DT: { bg: '#F39C12', text: '#000000', border: '#333333' },   // Determiner
+  PRP: { bg: '#E67E22', text: '#000000', border: '#333333' },  // Personal pronoun
+  'PRP$': { bg: '#E67E22', text: '#000000', border: '#333333' }, // Possessive pronoun
+  WP: { bg: '#E67E22', text: '#000000', border: '#333333' },   // Wh-pronoun
+  WDT: { bg: '#F39C12', text: '#000000', border: '#333333' },  // Wh-determiner
+  WRB: { bg: '#3498DB', text: '#000000', border: '#333333' },  // Wh-adverb
+  MD: { bg: '#16A085', text: '#000000', border: '#333333' },   // Modal
+  TO: { bg: '#7D3C98', text: '#000000', border: '#333333' },   // "to"
+
   // Terminal - white
   TERMINAL: { bg: '#ffffff', text: '#000000', border: '#999999' }
 };
@@ -49,9 +90,34 @@ const NodeColors = {
 // Determine node type from label
 function getNodeTypeFromLabel(label) {
   const upperLabel = label.toUpperCase();
-  if (['S', 'IC', 'DC', 'RC', 'CC'].includes(upperLabel)) return NodeType.CLAUSE;
-  if (['NP', 'VP', 'PP', 'ADJP', 'ADVP'].includes(upperLabel)) return NodeType.PHRASE;
-  if (['NOUN', 'VERB', 'ADJ', 'ADV', 'DET', 'PRON', 'PREP', 'CONJ', 'MOD', 'AUX', 'SUB', 'REL', 'COMP'].includes(upperLabel)) return NodeType.POS;
+
+  // Clauses
+  if (['S', 'IC', 'DC', 'RC', 'CC', 'CP', 'IP', 'TP'].includes(upperLabel)) {
+    return NodeType.CLAUSE;
+  }
+
+  // Phrases
+  if (['NP', 'VP', 'PP', 'ADJP', 'ADVP', 'DP'].includes(upperLabel)) {
+    return NodeType.PHRASE;
+  }
+
+  // POS - full names
+  if (['NOUN', 'VERB', 'ADJ', 'ADV', 'DET', 'PRON', 'PREP', 'CONJ', 'MOD', 'AUX', 'SUB', 'REL', 'COMP'].includes(upperLabel)) {
+    return NodeType.POS;
+  }
+
+  // POS - single letter abbreviations
+  if (['N', 'V', 'A', 'P', 'D', 'C', 'T', 'I'].includes(upperLabel)) {
+    return NodeType.POS;
+  }
+
+  // POS - Penn Treebank style tags
+  if (['NN', 'NNS', 'NNP', 'NNPS', 'VB', 'VBD', 'VBG', 'VBN', 'VBP', 'VBZ',
+       'JJ', 'JJR', 'JJS', 'RB', 'RBR', 'RBS', 'IN', 'DT', 'PRP', 'PRP$',
+       'WP', 'WDT', 'WRB', 'MD', 'TO'].includes(upperLabel)) {
+    return NodeType.POS;
+  }
+
   return NodeType.CLAUSE; // Default for unknown labels
 }
 

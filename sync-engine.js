@@ -20,7 +20,7 @@ class SyncEngine {
 
     // Debounce timer for text input
     this.textDebounceTimer = null;
-    this.TEXT_DEBOUNCE_MS = 400;
+    this.TEXT_DEBOUNCE_MS = 500;
 
     this.setupEventListeners();
     this.setupTreeListeners();
@@ -127,29 +127,33 @@ class SyncEngine {
 
   /**
    * Sync bracket text to canvas
+   * Always attempts to parse and render, even with incomplete input.
+   * The parser auto-balances brackets to handle partial input.
    */
   syncTextToCanvas() {
     if (!this.autoSync || this.isSyncing) return;
 
     const text = this.bracketInput.value.trim();
 
-    // Validate first
+    // Validate to show status, but don't block parsing
     const validation = this.parser.validate(text);
-    if (!validation.valid) {
-      this.setStatus(validation.error, 'error');
-      return;
-    }
 
     this.isSyncing = true;
 
     try {
       // Parse the text into the tree (clears and rebuilds)
+      // The parser auto-balances brackets, so incomplete input still renders
       this.parser.parse(text, this.tree);
 
       // Rebuild canvas
       this.canvasManager.syncFromTree();
 
-      this.setStatus('Synced');
+      // Show appropriate status
+      if (!validation.valid) {
+        this.setStatus(validation.error, 'warning');
+      } else {
+        this.setStatus('Synced');
+      }
     } catch (e) {
       this.setStatus('Parse error: ' + e.message, 'error');
     }

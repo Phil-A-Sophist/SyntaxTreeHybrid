@@ -30,6 +30,10 @@ class CanvasManager {
     this.potentialConnectionLine = null;
     this.potentialParent = null;
 
+    // Preview for insertion between nodes
+    this.potentialInsertion = null; // { parent, child } when inserting between
+    this.insertionPreviewLines = []; // Two preview lines for insertion
+
     // State
     this.selectedTile = null;
     this.connectionPreviewLine = null;
@@ -334,9 +338,14 @@ class CanvasManager {
       } else {
         // Clean up preview even if not dragging (e.g., click without drag)
         this.hidePotentialConnection();
+        this.hideInsertionPreview();
         if (this._lastHighlightedTile) {
           this.highlightConnectionTarget(this._lastHighlightedTile, false);
           this._lastHighlightedTile = null;
+        }
+        if (this._lastHighlightedTile2) {
+          this.highlightConnectionTarget(this._lastHighlightedTile2, false);
+          this._lastHighlightedTile2 = null;
         }
       }
 
@@ -617,6 +626,97 @@ class CanvasManager {
   // === Auto-Connection Logic ===
 
   /**
+   * Line insertion threshold - distance to a connection line to trigger insertion mode.
+   */
+  LINE_INSERTION_THRESHOLD = 40; // pixels
+
+  /**
+   * Find if a node is close to an existing connection line (for insertion between nodes).
+   * Returns { parent, child, distance } or null if not near any line.
+   */
+  findNearestConnectionLine(node, tile) {
+    const nodeCenter = tile.getCenterPoint();
+    let bestMatch = null;
+    let bestDistance = Infinity;
+
+    for (const parentNode of this.tree.getAllNodes()) {
+      // Skip if this is the node we're dragging
+      if (parentNode === node) continue;
+
+      for (const childNode of parentNode.children) {
+        // Skip if this is the node we're dragging
+        if (childNode === node) continue;
+
+        // Skip if the dragged node is an ancestor of the parent (would create cycle)
+        if (node.isAncestorOf(parentNode)) continue;
+
+        // Skip if parent is a terminal (can't have children)
+        if (parentNode.isTerminal()) continue;
+
+        const parentTile = this.nodeToCanvas.get(parentNode.id);
+        const childTile = this.nodeToCanvas.get(childNode.id);
+
+        if (!parentTile || !childTile) continue;
+
+        const parentCenter = parentTile.getCenterPoint();
+        const childCenter = childTile.getCenterPoint();
+
+        // Calculate distance from point to line segment
+        const distance = this.pointToLineDistance(
+          nodeCenter.x, nodeCenter.y,
+          parentCenter.x, parentCenter.y,
+          childCenter.x, childCenter.y
+        );
+
+        // Check if the dragged node's y position is between parent and child
+        const minY = Math.min(parentCenter.y, childCenter.y);
+        const maxY = Math.max(parentCenter.y, childCenter.y);
+        const isVerticallyBetween = nodeCenter.y > minY + this.MIN_VERTICAL_GAP &&
+                                    nodeCenter.y < maxY - this.MIN_VERTICAL_GAP;
+
+        if (distance !== null && distance < this.LINE_INSERTION_THRESHOLD &&
+            distance < bestDistance && isVerticallyBetween) {
+          bestDistance = distance;
+          bestMatch = { parent: parentNode, child: childNode, distance };
+        }
+      }
+    }
+
+    return bestMatch;
+  }
+
+  /**
+   * Calculate the perpendicular distance from a point to a line segment.
+   * Returns null if the perpendicular projection falls outside the segment.
+   */
+  pointToLineDistance(px, py, x1, y1, x2, y2) {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const lengthSquared = dx * dx + dy * dy;
+
+    if (lengthSquared === 0) {
+      // Line segment is a point
+      return Math.sqrt((px - x1) ** 2 + (py - y1) ** 2);
+    }
+
+    // Calculate projection parameter t
+    let t = ((px - x1) * dx + (py - y1) * dy) / lengthSquared;
+
+    // Clamp t to [0, 1] but allow small margin for near-endpoint cases
+    if (t < 0.1 || t > 0.9) {
+      // Too close to endpoints - prefer direct parent connection instead
+      return null;
+    }
+
+    // Find closest point on line segment
+    const closestX = x1 + t * dx;
+    const closestY = y1 + t * dy;
+
+    // Return distance to closest point
+    return Math.sqrt((px - closestX) ** 2 + (py - closestY) ** 2);
+  }
+
+  /**
    * Find the best parent candidate for a node based on proximity.
    * Parent must be above the child (smaller y value).
    * Uses weighted distance that penalizes horizontal offset more.
@@ -708,10 +808,106 @@ class CanvasManager {
   }
 
   /**
+   * Show preview lines for insertion between two nodes.
+   * Shows two dashed lines: parent→newNode and newNode→child
+   */
+  showInsertionPreview(tile, parentTile, childTile) {
+    const nodeCenter = tile.getCenterPoint();
+    const parentCenter = parentTile.getCenterPoint();
+    const childCenter = childTile.getCenterPoint();
+
+    // Clear existing preview lines
+    this.hideInsertionPreview();
+
+    // Line from parent to new node (orange/yellow to indicate insertion)
+    const lineToParent = new fabric.Line(
+      [parentCenter.x, parentCenter.y, nodeCenter.x, nodeCenter.y],
+      {
+        stroke: '#ff9900',
+        strokeWidth: 3,
+        strokeDashArray: [8, 4],
+        selectable: false,
+        evented: false,
+        opacity: 0.9
+      }
+    );
+
+    // Line from new node to child
+    const lineToChild = new fabric.Line(
+      [nodeCenter.x, nodeCenter.y, childCenter.x, childCenter.y],
+      {
+        stroke: '#ff9900',
+        strokeWidth: 3,
+        strokeDashArray: [8, 4],
+        selectable: false,
+        evented: false,
+        opacity: 0.9
+      }
+    );
+
+    this.insertionPreviewLines = [lineToParent, lineToChild];
+    this.canvas.add(lineToParent, lineToChild);
+    this.canvas.sendToBack(lineToParent);
+    this.canvas.sendToBack(lineToChild);
+  }
+
+  /**
+   * Remove the insertion preview lines.
+   */
+  hideInsertionPreview() {
+    for (const line of this.insertionPreviewLines) {
+      this.canvas.remove(line);
+    }
+    this.insertionPreviewLines = [];
+    this.potentialInsertion = null;
+  }
+
+  /**
    * Handle auto-connection preview during drag.
+   * Checks for insertion between nodes first, then falls back to parent connection.
    * Only shows preview - actual connection happens on mouseup.
    */
   handleAutoConnectionPreview(node, tile) {
+    // First, check if we're near a connection line (insertion mode)
+    const insertion = this.findNearestConnectionLine(node, tile);
+
+    if (insertion) {
+      // We're near a connection line - show insertion preview
+      this.potentialInsertion = insertion;
+      this.potentialParent = null;
+
+      // Hide regular connection preview
+      this.hidePotentialConnection();
+
+      const parentTile = this.nodeToCanvas.get(insertion.parent.id);
+      const childTile = this.nodeToCanvas.get(insertion.child.id);
+
+      if (parentTile && childTile) {
+        this.showInsertionPreview(tile, parentTile, childTile);
+
+        // Highlight both parent and child tiles in orange
+        if (this._lastHighlightedTile) {
+          this.highlightConnectionTarget(this._lastHighlightedTile, false);
+        }
+        if (this._lastHighlightedTile2) {
+          this.highlightConnectionTarget(this._lastHighlightedTile2, false);
+        }
+        this.highlightInsertionTarget(parentTile, true);
+        this.highlightInsertionTarget(childTile, true);
+        this._lastHighlightedTile = parentTile;
+        this._lastHighlightedTile2 = childTile;
+      }
+      return;
+    }
+
+    // Clear insertion preview if we're not in insertion mode
+    this.hideInsertionPreview();
+    if (this._lastHighlightedTile2) {
+      this.highlightConnectionTarget(this._lastHighlightedTile2, false);
+      this._lastHighlightedTile2 = null;
+    }
+
+    // Fall back to regular parent candidate logic
     const candidate = this.findBestParentCandidate(node, tile);
 
     if (candidate) {
@@ -738,17 +934,75 @@ class CanvasManager {
   }
 
   /**
+   * Highlight a tile for insertion mode (orange).
+   */
+  highlightInsertionTarget(tile, highlight) {
+    if (!tile) return;
+
+    const rect = tile.item(0);
+    if (highlight) {
+      rect.set({
+        stroke: '#ff9900',
+        strokeWidth: 3,
+        shadow: new fabric.Shadow({
+          color: '#ff9900',
+          blur: 8,
+          offsetX: 0,
+          offsetY: 0
+        })
+      });
+    } else {
+      const node = this.tree.findById(tile.treeNodeId);
+      const colors = node ? getNodeColors(node.label, node.nodeType) : { border: '#333' };
+      rect.set({
+        stroke: colors.border,
+        strokeWidth: node && node.isTerminal() ? 1.5 : 2,
+        shadow: null
+      });
+    }
+    this.canvas.requestRenderAll();
+  }
+
+  /**
    * Finalize auto-connection on mouseup.
-   * Actually connects or disconnects based on final position.
+   * Handles insertion between nodes, regular parent connection, or disconnection.
    */
   finalizeAutoConnection(node, tile) {
-    // Clean up preview
+    // Clean up all previews
     this.hidePotentialConnection();
+    this.hideInsertionPreview();
     if (this._lastHighlightedTile) {
       this.highlightConnectionTarget(this._lastHighlightedTile, false);
       this._lastHighlightedTile = null;
     }
+    if (this._lastHighlightedTile2) {
+      this.highlightConnectionTarget(this._lastHighlightedTile2, false);
+      this._lastHighlightedTile2 = null;
+    }
 
+    // First, check for insertion between nodes
+    const insertion = this.findNearestConnectionLine(node, tile);
+
+    if (insertion) {
+      // Insert this node between parent and child
+      const { parent, child } = insertion;
+
+      // Disconnect node from its current parent if any
+      if (node.parent) {
+        this.tree.disconnect(node);
+      }
+
+      // Disconnect the child from the parent
+      this.tree.disconnect(child);
+
+      // Connect: parent → new node → child
+      this.tree.connect(parent, node);
+      this.tree.connect(node, child);
+
+      return;
+    }
+
+    // Fall back to regular parent candidate logic
     const candidate = this.findBestParentCandidate(node, tile);
 
     if (candidate) {
@@ -1105,11 +1359,14 @@ class CanvasManager {
       // Word dragged from palette input
       const terminal = this.tree.createNode(value, NodeType.TERMINAL);
       const tile = this.createTileForNode(terminal);
-      this.positionTileAtDrop(tile, x, y);
+      this.positionTileAtDropImmediate(tile, x, y);
 
-      // Auto-connect to nearest parent on drop
-      this.finalizeAutoConnection(terminal, tile);
+      // Auto-connect to nearest parent or insert between nodes
+      this.finalizeAutoConnectionForDrop(terminal, tile);
       this.updateConnectionLines();
+
+      // Animate the drop after positioning
+      this.animateTileDrop(tile, y);
 
       if (this.onTreeChanged) {
         this.onTreeChanged();
@@ -1124,26 +1381,112 @@ class CanvasManager {
                      NodeType.CLAUSE;
     const node = this.tree.createNode(value, nodeType);
     const tile = this.createTileForNode(node);
-    this.positionTileAtDrop(tile, x, y);
+    this.positionTileAtDropImmediate(tile, x, y);
 
-    // Auto-connect to nearest parent on drop
-    this.finalizeAutoConnection(node, tile);
+    // Auto-connect to nearest parent or insert between nodes
+    this.finalizeAutoConnectionForDrop(node, tile);
 
     // For POS nodes, auto-create a terminal child
     if (type === 'pos') {
       const terminal = new TreeNode('...', NodeType.TERMINAL);
       this.tree.connect(node, terminal);
       const terminalTile = this.createTileForNode(terminal);
-      this.positionTileAtDrop(terminalTile, x, y + this.LEVEL_HEIGHT);
+      this.positionTileAtDropImmediate(terminalTile, x, y + this.LEVEL_HEIGHT);
+      this.animateTileDrop(terminalTile, y + this.LEVEL_HEIGHT);
     }
 
     this.updateConnectionLines();
+
+    // Animate the drop after positioning
+    this.animateTileDrop(tile, y);
 
     if (this.onTreeChanged) {
       this.onTreeChanged();
     }
 
     return node;
+  }
+
+  /**
+   * Similar to finalizeAutoConnection but for newly dropped nodes.
+   * Checks for insertion between nodes first.
+   */
+  finalizeAutoConnectionForDrop(node, tile) {
+    // First, check for insertion between nodes
+    const insertion = this.findNearestConnectionLine(node, tile);
+
+    if (insertion) {
+      // Insert this node between parent and child
+      const { parent, child } = insertion;
+
+      // Disconnect the child from the parent
+      this.tree.disconnect(child);
+
+      // Connect: parent → new node → child
+      this.tree.connect(parent, node);
+      this.tree.connect(node, child);
+
+      return;
+    }
+
+    // Fall back to regular parent candidate logic
+    const candidate = this.findBestParentCandidate(node, tile);
+
+    if (candidate) {
+      this.tree.connect(candidate.node, node);
+    }
+  }
+
+  /**
+   * Position tile immediately at drop location (for connection detection).
+   */
+  positionTileAtDropImmediate(tile, x, y) {
+    const width = tile.item(0).width || this.TILE_WIDTH;
+    const height = tile.item(0).height || this.TILE_HEIGHT;
+
+    tile.set({
+      left: x - width / 2,
+      top: y - height / 2,
+      opacity: 1
+    });
+    tile.setCoords();
+  }
+
+  /**
+   * Animate a tile dropping into place.
+   */
+  animateTileDrop(tile, targetY) {
+    const height = tile.item(0).height || this.TILE_HEIGHT;
+    const targetTop = targetY - height / 2;
+    const startTop = targetTop - 20;
+
+    tile.set({
+      top: startTop,
+      opacity: 0.3
+    });
+    tile.setCoords();
+
+    const startTime = performance.now();
+
+    const animateDrop = (currentTime) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / 120, 1);
+      const eased = 1 - Math.pow(1 - progress, 2);
+
+      tile.set({
+        top: startTop + 20 * eased,
+        opacity: 0.3 + 0.7 * eased
+      });
+      tile.setCoords();
+      this.updateConnectionLines();
+      this.canvas.requestRenderAll();
+
+      if (progress < 1) {
+        requestAnimationFrame(animateDrop);
+      }
+    };
+
+    requestAnimationFrame(animateDrop);
   }
 
   positionTileAtDrop(tile, x, y) {
