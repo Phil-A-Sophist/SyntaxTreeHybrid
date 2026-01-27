@@ -15,9 +15,9 @@ class CanvasManager {
     this.TERMINAL_HEIGHT = 30;
 
     // Layout settings
-    this.UNIT_WIDTH = 120;
-    this.LEVEL_HEIGHT = 90;
-    this.TOP_MARGIN = 30;
+    this.UNIT_WIDTH = 145;      // Increased from 120 for more horizontal breathing room
+    this.LEVEL_HEIGHT = 105;    // Increased from 90 for easier drag-drop between levels
+    this.TOP_MARGIN = 40;       // Increased from 30 for better top spacing
     this.ANIMATION_DURATION = 150;
 
     // Auto-connection settings
