@@ -11,6 +11,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
   const syncEngine = new SyncEngine(tree, canvasManager, bracketInput, bracketStatus);
 
+  // Expose for testing and debugging
+  window.canvasManager = canvasManager;
+  window.tree = tree;
+  window.syncEngine = syncEngine;
+
   // === Palette Drag & Drop ===
   setupPaletteDragDrop(canvasManager);
 
