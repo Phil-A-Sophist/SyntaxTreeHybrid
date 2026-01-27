@@ -322,15 +322,22 @@ class CanvasManager {
       }
 
       if (isDragging) {
+        // Capture drop position BEFORE finalizeAutoConnection (which may trigger relayout)
+        const dropX = tile.left + this.TILE_WIDTH / 2;
+        const dropY = tile.top + this.TILE_HEIGHT / 2;
+
+        // Update node position first so reordering uses correct x coordinate
+        node.x = dropX;
+        node.y = dropY;
+
         // Finalize auto-connection based on final position
         this.finalizeAutoConnection(node, tile);
 
-        // Update node position
-        node.x = tile.left + this.TILE_WIDTH / 2;
-        node.y = tile.top + this.TILE_HEIGHT / 2;
-
-        // Reorder siblings based on position
+        // Reorder siblings based on horizontal position
         node.reorderByPosition();
+
+        // Trigger relayout to apply proper spacing with new sibling order
+        this.relayout(true);
 
         if (this.onTreeChanged) {
           this.onTreeChanged();
