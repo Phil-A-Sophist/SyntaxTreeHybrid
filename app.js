@@ -64,15 +64,21 @@ function setupPaletteDragDrop(canvasManager) {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'copy';
     this.classList.add('drag-over');
+
+    // Show preview lines for potential connection at current drag position
+    const pointer = canvasManager.canvas.getPointer(e, true);
+    canvasManager.showDropPreview(pointer.x, pointer.y);
   });
 
   canvasElement.addEventListener('dragleave', function() {
     this.classList.remove('drag-over');
+    canvasManager.hideDropPreview();
   });
 
   canvasElement.addEventListener('drop', function(e) {
     e.preventDefault();
     this.classList.remove('drag-over');
+    canvasManager.hideDropPreview();
 
     const data = e.dataTransfer.getData('text/plain');
     if (!data) return;
@@ -184,9 +190,30 @@ function setupZoomControls(canvasManager) {
     canvasManager.canvas.setZoom(zoom);
   });
 
+  document.getElementById('zoom-fit').addEventListener('click', () => {
+    canvasManager.fitToView(true);
+  });
+
   document.getElementById('zoom-reset').addEventListener('click', () => {
     canvasManager.canvas.setZoom(1);
     canvasManager.canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+  });
+
+  // Panel toggle
+  const panelToggle = document.getElementById('panel-toggle');
+  const rightPanel = document.querySelector('.right-panel');
+
+  panelToggle.addEventListener('click', () => {
+    rightPanel.classList.toggle('collapsed');
+    const isCollapsed = rightPanel.classList.contains('collapsed');
+    panelToggle.innerHTML = isCollapsed
+      ? '<span class="icon">☰</span> Show Panel'
+      : '<span class="icon">☰</span> Panel';
+
+    // Resize canvas after transition
+    setTimeout(() => {
+      canvasManager.resizeCanvas();
+    }, 350);
   });
 }
 

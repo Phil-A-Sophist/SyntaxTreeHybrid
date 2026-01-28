@@ -8,22 +8,22 @@ class CanvasManager {
     this.canvas = new fabric.Canvas(canvasId);
     this.tree = tree;
 
-    // Tile dimensions
-    this.TILE_WIDTH = 80;
-    this.TILE_HEIGHT = 36;
-    this.TERMINAL_WIDTH = 70;
-    this.TERMINAL_HEIGHT = 30;
+    // Tile dimensions - compact for better space usage
+    this.TILE_WIDTH = 60;
+    this.TILE_HEIGHT = 28;
+    this.TERMINAL_WIDTH = 55;
+    this.TERMINAL_HEIGHT = 24;
 
-    // Layout settings
-    this.UNIT_WIDTH = 145;      // Increased from 120 for more horizontal breathing room
-    this.LEVEL_HEIGHT = 105;    // Increased from 90 for easier drag-drop between levels
-    this.TOP_MARGIN = 40;       // Increased from 30 for better top spacing
+    // Layout settings - tighter spacing to fit more on screen
+    this.UNIT_WIDTH = 90;       // Compact horizontal spacing
+    this.LEVEL_HEIGHT = 70;     // Compact vertical spacing
+    this.TOP_MARGIN = 30;       // Top margin
     this.ANIMATION_DURATION = 150;
 
-    // Auto-connection settings
-    this.CONNECTION_THRESHOLD = 360; // pixels - max distance to auto-connect
-    this.DISCONNECT_THRESHOLD = 540; // pixels - distance to auto-disconnect (larger for hysteresis)
-    this.MIN_VERTICAL_GAP = 25; // parent must be at least this many pixels above child
+    // Auto-connection settings - adjusted for compact layout
+    this.CONNECTION_THRESHOLD = 200; // pixels - max distance to auto-connect
+    this.DISCONNECT_THRESHOLD = 300; // pixels - distance to auto-disconnect (larger for hysteresis)
+    this.MIN_VERTICAL_GAP = 20; // parent must be at least this many pixels above child
     this.HORIZONTAL_WEIGHT = 1.5; // penalize horizontal distance more than vertical
 
     // Preview line for potential connection
@@ -199,16 +199,16 @@ class CanvasManager {
       width: this.TILE_WIDTH,
       height: this.TILE_HEIGHT,
       fill: colors.bg,
-      rx: 8,
-      ry: 8,
+      rx: 6,
+      ry: 6,
       stroke: colors.border,
-      strokeWidth: 2,
+      strokeWidth: 1.5,
       originX: 'center',
       originY: 'center'
     });
 
     const text = new fabric.Text(label, {
-      fontSize: 13,
+      fontSize: 11,
       fontWeight: 'bold',
       fill: colors.text,
       textAlign: 'center',
@@ -233,31 +233,31 @@ class CanvasManager {
       width: this.TERMINAL_WIDTH,
       height: this.TERMINAL_HEIGHT,
       fill: colors.bg,
-      rx: 6,
-      ry: 6,
+      rx: 5,
+      ry: 5,
       stroke: colors.border,
-      strokeWidth: 1.5,
+      strokeWidth: 1,
       originX: 'center',
       originY: 'center'
     });
 
     const label = new fabric.Text(text || '...', {
-      fontSize: 12,
+      fontSize: 10,
       fill: colors.text,
       textAlign: 'center',
       originX: 'center',
       originY: 'center',
-      top: isEmpty ? -7 : 0,
+      top: isEmpty ? -4 : 0,
       fontFamily: 'system-ui, sans-serif'
     });
 
-    const hint = new fabric.Text('Ctrl+click to type', {
-      fontSize: 8,
-      fill: '#999',
+    const hint = new fabric.Text('Ctrl+click', {
+      fontSize: 9,
+      fill: '#888',
       textAlign: 'center',
       originX: 'center',
       originY: 'center',
-      top: 8,
+      top: 5,
       fontFamily: 'system-ui, sans-serif',
       visible: isEmpty
     });
@@ -801,6 +801,7 @@ class CanvasManager {
         y2: childCenter.y
       });
     }
+    this.canvas.requestRenderAll();
   }
 
   /**
@@ -812,6 +813,243 @@ class CanvasManager {
       this.potentialConnectionLine = null;
     }
     this.potentialParent = null;
+  }
+
+  /**
+   * Show preview lines during drag-over from palette (before drop).
+   * Creates a preview of where connections would be made if dropped at (x, y).
+   */
+  showDropPreview(x, y) {
+    // First check for insertion between existing nodes
+    const insertion = this.findNearestConnectionLineAtPoint(x, y);
+
+    if (insertion) {
+      // We're near a connection line - show insertion preview
+      this.hidePotentialConnection();
+
+      const parentTile = this.nodeToCanvas.get(insertion.parent.id);
+      const childTile = this.nodeToCanvas.get(insertion.child.id);
+
+      if (parentTile && childTile) {
+        this.showInsertionPreviewAtPoint(x, y, parentTile, childTile);
+
+        // Highlight both parent and child tiles in orange
+        if (this._dropHighlightedTile && this._dropHighlightedTile !== parentTile) {
+          this.highlightConnectionTarget(this._dropHighlightedTile, false);
+        }
+        if (this._dropHighlightedTile2 && this._dropHighlightedTile2 !== childTile) {
+          this.highlightConnectionTarget(this._dropHighlightedTile2, false);
+        }
+        this.highlightInsertionTarget(parentTile, true);
+        this.highlightInsertionTarget(childTile, true);
+        this._dropHighlightedTile = parentTile;
+        this._dropHighlightedTile2 = childTile;
+      }
+      return;
+    }
+
+    // Clear insertion preview if not in insertion mode
+    this.hideInsertionPreview();
+    if (this._dropHighlightedTile2) {
+      this.highlightConnectionTarget(this._dropHighlightedTile2, false);
+      this._dropHighlightedTile2 = null;
+    }
+
+    // Fall back to regular parent candidate logic
+    const candidate = this.findBestParentCandidateAtPoint(x, y);
+
+    if (candidate) {
+      // Show preview line to potential parent
+      this.showPotentialConnectionAtPoint(x, y, candidate.tile);
+
+      // Highlight the potential parent tile
+      if (this._dropHighlightedTile && this._dropHighlightedTile !== candidate.tile) {
+        this.highlightConnectionTarget(this._dropHighlightedTile, false);
+      }
+      this.highlightConnectionTarget(candidate.tile, true);
+      this._dropHighlightedTile = candidate.tile;
+    } else {
+      // No suitable parent found
+      this.hidePotentialConnection();
+
+      // Remove highlight from previous tile
+      if (this._dropHighlightedTile) {
+        this.highlightConnectionTarget(this._dropHighlightedTile, false);
+        this._dropHighlightedTile = null;
+      }
+    }
+  }
+
+  /**
+   * Hide preview lines shown during drag-over.
+   */
+  hideDropPreview() {
+    this.hidePotentialConnection();
+    this.hideInsertionPreview();
+
+    if (this._dropHighlightedTile) {
+      this.highlightConnectionTarget(this._dropHighlightedTile, false);
+      this._dropHighlightedTile = null;
+    }
+    if (this._dropHighlightedTile2) {
+      this.highlightConnectionTarget(this._dropHighlightedTile2, false);
+      this._dropHighlightedTile2 = null;
+    }
+    this.canvas.requestRenderAll();
+  }
+
+  /**
+   * Find the best parent candidate for a point (used during drag-over).
+   */
+  findBestParentCandidateAtPoint(x, y) {
+    let bestCandidate = null;
+    let bestScore = Infinity;
+    let bestTile = null;
+
+    for (const [nodeId, tile] of this.nodeToCanvas) {
+      const node = this.tree.findById(nodeId);
+      if (!node) continue;
+
+      // Skip terminal nodes - they can't be parents
+      if (node.isTerminal()) continue;
+
+      const tileCenter = tile.getCenterPoint();
+
+      // Parent must be above drop point (smaller y = higher on screen)
+      if (tileCenter.y >= y - this.MIN_VERTICAL_GAP) continue;
+
+      // Calculate weighted distance (penalize horizontal more)
+      const dx = Math.abs(tileCenter.x - x);
+      const dy = Math.abs(tileCenter.y - y);
+
+      const score = (dx * this.HORIZONTAL_WEIGHT) + dy;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+
+      if (distance < this.CONNECTION_THRESHOLD && score < bestScore) {
+        bestCandidate = node;
+        bestScore = score;
+        bestTile = tile;
+      }
+    }
+
+    return bestCandidate ? { node: bestCandidate, score: bestScore, tile: bestTile } : null;
+  }
+
+  /**
+   * Find if a point is close to an existing connection line (for insertion).
+   */
+  findNearestConnectionLineAtPoint(x, y) {
+    let bestMatch = null;
+    let bestDistance = Infinity;
+
+    for (const parentNode of this.tree.getAllNodes()) {
+      for (const childNode of parentNode.children) {
+        // Skip if parent is a terminal (can't have children)
+        if (parentNode.isTerminal()) continue;
+
+        const parentTile = this.nodeToCanvas.get(parentNode.id);
+        const childTile = this.nodeToCanvas.get(childNode.id);
+
+        if (!parentTile || !childTile) continue;
+
+        const parentCenter = parentTile.getCenterPoint();
+        const childCenter = childTile.getCenterPoint();
+
+        const distance = this.pointToLineDistance(
+          x, y,
+          parentCenter.x, parentCenter.y,
+          childCenter.x, childCenter.y
+        );
+
+        // Check if the point's y position is between parent and child
+        const minY = Math.min(parentCenter.y, childCenter.y);
+        const maxY = Math.max(parentCenter.y, childCenter.y);
+        const isVerticallyBetween = y > minY + this.MIN_VERTICAL_GAP &&
+                                    y < maxY - this.MIN_VERTICAL_GAP;
+
+        if (distance !== null && distance < this.LINE_INSERTION_THRESHOLD &&
+            distance < bestDistance && isVerticallyBetween) {
+          bestDistance = distance;
+          bestMatch = { parent: parentNode, child: childNode, distance };
+        }
+      }
+    }
+
+    return bestMatch;
+  }
+
+  /**
+   * Show a preview line from a point to a potential parent tile.
+   */
+  showPotentialConnectionAtPoint(x, y, parentTile) {
+    const parentCenter = parentTile.getCenterPoint();
+
+    if (!this.potentialConnectionLine) {
+      this.potentialConnectionLine = new fabric.Line(
+        [parentCenter.x, parentCenter.y, x, y],
+        {
+          stroke: '#00aa44',
+          strokeWidth: 3,
+          strokeDashArray: [8, 4],
+          selectable: false,
+          evented: false,
+          opacity: 0.8
+        }
+      );
+      this.canvas.add(this.potentialConnectionLine);
+      this.canvas.sendToBack(this.potentialConnectionLine);
+    } else {
+      this.potentialConnectionLine.set({
+        x1: parentCenter.x,
+        y1: parentCenter.y,
+        x2: x,
+        y2: y
+      });
+    }
+    this.canvas.requestRenderAll();
+  }
+
+  /**
+   * Show insertion preview lines at a point (during drag-over).
+   */
+  showInsertionPreviewAtPoint(x, y, parentTile, childTile) {
+    const parentCenter = parentTile.getCenterPoint();
+    const childCenter = childTile.getCenterPoint();
+
+    // Clear existing preview lines
+    this.hideInsertionPreview();
+
+    // Line from parent to drop point
+    const lineToParent = new fabric.Line(
+      [parentCenter.x, parentCenter.y, x, y],
+      {
+        stroke: '#ff9900',
+        strokeWidth: 3,
+        strokeDashArray: [8, 4],
+        selectable: false,
+        evented: false,
+        opacity: 0.9
+      }
+    );
+
+    // Line from drop point to child
+    const lineToChild = new fabric.Line(
+      [x, y, childCenter.x, childCenter.y],
+      {
+        stroke: '#ff9900',
+        strokeWidth: 3,
+        strokeDashArray: [8, 4],
+        selectable: false,
+        evented: false,
+        opacity: 0.9
+      }
+    );
+
+    this.insertionPreviewLines = [lineToParent, lineToChild];
+    this.canvas.add(lineToParent, lineToChild);
+    this.canvas.sendToBack(lineToParent);
+    this.canvas.sendToBack(lineToChild);
+    this.canvas.requestRenderAll();
   }
 
   /**
@@ -856,6 +1094,7 @@ class CanvasManager {
     this.canvas.add(lineToParent, lineToChild);
     this.canvas.sendToBack(lineToParent);
     this.canvas.sendToBack(lineToChild);
+    this.canvas.requestRenderAll();
   }
 
   /**
@@ -1059,6 +1298,8 @@ class CanvasManager {
 
     // Draw movement arrows
     this.drawMovementArrows();
+
+    this.canvas.requestRenderAll();
   }
 
   // === Movement Arrows ===
@@ -1176,6 +1417,11 @@ class CanvasManager {
   // === Auto-Layout ===
 
   relayout(animate = true) {
+    // Skip if relayout is suppressed (e.g., during batch operations)
+    if (this._suppressRelayout) {
+      return;
+    }
+
     if (this.tree.isEmpty()) {
       this.updateConnectionLines();
       return;
@@ -1228,10 +1474,9 @@ class CanvasManager {
 
       const tile = this.nodeToCanvas.get(node.id);
       if (tile) {
-        const width = tile.item(0).width || this.TILE_WIDTH;
-        const height = tile.item(0).height || this.TILE_HEIGHT;
+        const groupWidth = tile.width || (tile.isTerminalTile ? this.TERMINAL_WIDTH : this.TILE_WIDTH);
         targets.set(node.id, {
-          left: centerX - width / 2,
+          left: centerX - groupWidth / 2,
           top: y
         });
       }
@@ -1342,7 +1587,7 @@ class CanvasManager {
       if (tile.isTerminalTile && tile.item(2)) {
         const isEmpty = !displayLabel || displayLabel === '...';
         tile.item(2).set({ visible: isEmpty });
-        textObj.set({ top: isEmpty ? -7 : 0 });
+        textObj.set({ top: isEmpty ? -5 : 0 });
       }
 
       this.canvas.requestRenderAll();
@@ -1375,6 +1620,9 @@ class CanvasManager {
       // Animate the drop after positioning
       this.animateTileDrop(tile, y);
 
+      // Smart auto-zoom if element is outside viewport
+      this.ensureVisible(x, y, this.TERMINAL_WIDTH, this.TERMINAL_HEIGHT);
+
       if (this.onTreeChanged) {
         this.onTreeChanged();
       }
@@ -1394,18 +1642,34 @@ class CanvasManager {
     this.finalizeAutoConnectionForDrop(node, tile);
 
     // For POS nodes, auto-create a terminal child
+    let lowestY = y;
     if (type === 'pos') {
+      // Suppress automatic relayout during this operation
+      this._suppressRelayout = true;
+
       const terminal = new TreeNode('...', NodeType.TERMINAL);
       this.tree.connect(node, terminal);
       const terminalTile = this.createTileForNode(terminal);
-      this.positionTileAtDropImmediate(terminalTile, x, y + this.LEVEL_HEIGHT);
-      this.animateTileDrop(terminalTile, y + this.LEVEL_HEIGHT);
+
+      // Position terminal directly below parent's center
+      tile.setCoords();
+      const parentCenterX = tile.left + tile.width / 2;
+      const terminalY = y + this.LEVEL_HEIGHT;
+      this.positionTileAtDropImmediate(terminalTile, parentCenterX, terminalY);
+
+      lowestY = terminalY;
+
+      // Re-enable relayout
+      this._suppressRelayout = false;
     }
 
     this.updateConnectionLines();
 
-    // Animate the drop after positioning
-    this.animateTileDrop(tile, y);
+    // Now trigger a single relayout with all tiles present
+    this.relayout(true);
+
+    // Smart auto-zoom if element is outside viewport
+    this.ensureVisible(x, lowestY, this.TILE_WIDTH, this.TILE_HEIGHT);
 
     if (this.onTreeChanged) {
       this.onTreeChanged();
@@ -1446,15 +1710,20 @@ class CanvasManager {
 
   /**
    * Position tile immediately at drop location (for connection detection).
+   * Centers the tile at the given (x, y) coordinates.
    */
   positionTileAtDropImmediate(tile, x, y) {
-    const width = tile.item(0).width || this.TILE_WIDTH;
-    const height = tile.item(0).height || this.TILE_HEIGHT;
+    // First, set a rough position and call setCoords to calculate actual dimensions
+    tile.set({ left: x, top: y, opacity: 1 });
+    tile.setCoords();
+
+    // Now use the actual calculated dimensions to center properly
+    const actualWidth = tile.width;
+    const actualHeight = tile.height;
 
     tile.set({
-      left: x - width / 2,
-      top: y - height / 2,
-      opacity: 1
+      left: x - actualWidth / 2,
+      top: y - actualHeight / 2
     });
     tile.setCoords();
   }
@@ -1463,8 +1732,8 @@ class CanvasManager {
    * Animate a tile dropping into place.
    */
   animateTileDrop(tile, targetY) {
-    const height = tile.item(0).height || this.TILE_HEIGHT;
-    const targetTop = targetY - height / 2;
+    const groupHeight = tile.height || (tile.isTerminalTile ? this.TERMINAL_HEIGHT : this.TILE_HEIGHT);
+    const targetTop = targetY - groupHeight / 2;
     const startTop = targetTop - 20;
 
     tile.set({
@@ -1497,15 +1766,14 @@ class CanvasManager {
   }
 
   positionTileAtDrop(tile, x, y) {
-    const width = tile.item(0).width || this.TILE_WIDTH;
-    const height = tile.item(0).height || this.TILE_HEIGHT;
-
-    const targetTop = y - height / 2;
+    const groupWidth = tile.width || (tile.isTerminalTile ? this.TERMINAL_WIDTH : this.TILE_WIDTH);
+    const groupHeight = tile.height || (tile.isTerminalTile ? this.TERMINAL_HEIGHT : this.TILE_HEIGHT);
+    const targetTop = y - groupHeight / 2;
     const startTop = targetTop - 20;
 
     // Animate drop
     tile.set({
-      left: x - width / 2,
+      left: x - groupWidth / 2,
       top: startTop,
       opacity: 0.3
     });
@@ -1531,6 +1799,177 @@ class CanvasManager {
     };
 
     requestAnimationFrame(animateDrop);
+  }
+
+  // === View Management ===
+
+  /**
+   * Get the visible viewport bounds in canvas coordinates.
+   */
+  getVisibleBounds() {
+    const vpt = this.canvas.viewportTransform;
+    const zoom = this.canvas.getZoom();
+    const width = this.canvas.getWidth();
+    const height = this.canvas.getHeight();
+
+    return {
+      left: -vpt[4] / zoom,
+      top: -vpt[5] / zoom,
+      right: (-vpt[4] + width) / zoom,
+      bottom: (-vpt[5] + height) / zoom,
+      width: width / zoom,
+      height: height / zoom
+    };
+  }
+
+  /**
+   * Check if a point is within the visible viewport.
+   */
+  isPointVisible(x, y, margin = 50) {
+    const bounds = this.getVisibleBounds();
+    return x >= bounds.left + margin &&
+           x <= bounds.right - margin &&
+           y >= bounds.top + margin &&
+           y <= bounds.bottom - margin;
+  }
+
+  /**
+   * Fit the entire tree into the viewport with padding.
+   */
+  fitToView(animate = true) {
+    const treeBounds = this.getTreeBounds();
+    if (!treeBounds) return;
+
+    const canvasWidth = this.canvas.getWidth();
+    const canvasHeight = this.canvas.getHeight();
+    const padding = 40;
+
+    // Calculate zoom to fit
+    const scaleX = (canvasWidth - padding * 2) / treeBounds.width;
+    const scaleY = (canvasHeight - padding * 2) / treeBounds.height;
+    const targetZoom = Math.min(scaleX, scaleY, 2); // Cap at 2x zoom
+
+    // Calculate center offset
+    const treeCenterX = treeBounds.left + treeBounds.width / 2;
+    const treeCenterY = treeBounds.top + treeBounds.height / 2;
+
+    const targetVptX = canvasWidth / 2 - treeCenterX * targetZoom;
+    const targetVptY = canvasHeight / 2 - treeCenterY * targetZoom;
+
+    if (animate) {
+      this.animateViewport(targetZoom, targetVptX, targetVptY);
+    } else {
+      this.canvas.setZoom(targetZoom);
+      this.canvas.setViewportTransform([targetZoom, 0, 0, targetZoom, targetVptX, targetVptY]);
+      this.canvas.requestRenderAll();
+    }
+  }
+
+  /**
+   * Get the bounding box of all tree nodes.
+   */
+  getTreeBounds() {
+    const tiles = Array.from(this.nodeToCanvas.values());
+    if (tiles.length === 0) return null;
+
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+    for (const tile of tiles) {
+      tile.setCoords();
+      const bounds = tile.getBoundingRect(true);
+      minX = Math.min(minX, bounds.left);
+      minY = Math.min(minY, bounds.top);
+      maxX = Math.max(maxX, bounds.left + bounds.width);
+      maxY = Math.max(maxY, bounds.top + bounds.height);
+    }
+
+    return {
+      left: minX,
+      top: minY,
+      width: maxX - minX,
+      height: maxY - minY,
+      right: maxX,
+      bottom: maxY
+    };
+  }
+
+  /**
+   * Smart auto-zoom: if a new element is outside the viewport, zoom out to show it.
+   * Otherwise, keep the current view to avoid jarring motion.
+   */
+  ensureVisible(x, y, nodeWidth = this.TILE_WIDTH, nodeHeight = this.TILE_HEIGHT) {
+    const visibleBounds = this.getVisibleBounds();
+    const margin = 30;
+
+    // Check if the new element is within the visible area
+    const isVisible = x - nodeWidth / 2 >= visibleBounds.left + margin &&
+                      x + nodeWidth / 2 <= visibleBounds.right - margin &&
+                      y - nodeHeight / 2 >= visibleBounds.top + margin &&
+                      y + nodeHeight / 2 <= visibleBounds.bottom - margin;
+
+    if (isVisible) {
+      // Element is visible, no need to adjust view
+      return;
+    }
+
+    // Element is outside viewport - zoom out to show it
+    const treeBounds = this.getTreeBounds();
+    if (!treeBounds) return;
+
+    const canvasWidth = this.canvas.getWidth();
+    const canvasHeight = this.canvas.getHeight();
+    const padding = 50;
+
+    // Calculate zoom needed to fit all content including new element
+    const scaleX = (canvasWidth - padding * 2) / treeBounds.width;
+    const scaleY = (canvasHeight - padding * 2) / treeBounds.height;
+    let targetZoom = Math.min(scaleX, scaleY, this.canvas.getZoom()); // Don't zoom in, only out
+
+    // Ensure minimum zoom
+    targetZoom = Math.max(targetZoom, 0.3);
+
+    // Calculate viewport to center on point biased toward the new element
+    const treeCenterX = treeBounds.left + treeBounds.width / 2;
+    const treeCenterY = treeBounds.top + treeBounds.height / 2;
+
+    // Bias center toward the new element (30% toward new element, 70% toward tree center)
+    const biasFactor = 0.3;
+    const adjustedCenterX = treeCenterX + (x - treeCenterX) * biasFactor;
+    const adjustedCenterY = treeCenterY + (y - treeCenterY) * biasFactor;
+
+    const targetVptX = canvasWidth / 2 - adjustedCenterX * targetZoom;
+    const targetVptY = canvasHeight / 2 - adjustedCenterY * targetZoom;
+
+    this.animateViewport(targetZoom, targetVptX, targetVptY, 200);
+  }
+
+  /**
+   * Animate viewport transform smoothly.
+   */
+  animateViewport(targetZoom, targetVptX, targetVptY, duration = 300) {
+    const startZoom = this.canvas.getZoom();
+    const startVpt = this.canvas.viewportTransform.slice();
+    const startTime = performance.now();
+
+    const animate = (currentTime) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3); // Ease-out cubic
+
+      const currentZoom = startZoom + (targetZoom - startZoom) * eased;
+      const currentVptX = startVpt[4] + (targetVptX - startVpt[4]) * eased;
+      const currentVptY = startVpt[5] + (targetVptY - startVpt[5]) * eased;
+
+      this.canvas.setZoom(currentZoom);
+      this.canvas.setViewportTransform([currentZoom, 0, 0, currentZoom, currentVptX, currentVptY]);
+      this.canvas.requestRenderAll();
+
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      }
+    };
+
+    requestAnimationFrame(animate);
   }
 
   // === Export ===

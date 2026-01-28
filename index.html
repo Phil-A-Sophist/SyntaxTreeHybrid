@@ -73,60 +73,42 @@
       min-height: 1em;
     }
 
-    /* Compact palette sections */
-    .palette-section {
-      background-color: #fff;
-      border: 1px solid #ddd;
-      margin: 4px 12px;
-      padding: 6px 10px;
-      border-radius: 6px;
+    /* Single-row palette bar */
+    .palette-bar {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 4px;
+      padding: 4px 8px;
+      background: #fafafa;
+      border-bottom: 1px solid #ddd;
       flex-shrink: 0;
     }
 
-    .palette-row {
-      display: flex;
-      justify-content: center;
-      flex-wrap: wrap;
-      gap: 6px;
-      margin: 0;
+    .palette-bar.bottom {
+      border-bottom: none;
+      border-top: 1px solid #ddd;
     }
 
-    /* Palette tile sizes - wider to accommodate full names */
-    .clauses-section .palette-tile {
-      min-width: 130px;
-      height: 32px;
-      font-size: 12px;
-      padding: 0 8px;
-    }
-
-    .phrases-section .palette-tile {
-      min-width: 130px;
-      height: 32px;
-      font-size: 12px;
-      padding: 0 8px;
-    }
-
-    .open-class-section .palette-tile {
-      min-width: 80px;
-      height: 32px;
-      font-size: 12px;
-      padding: 0 8px;
-    }
-
-    .closed-class-section .palette-tile {
-      min-width: 100px;
-      height: 32px;
-      font-size: 11px;
-      padding: 0 6px;
+    .palette-divider {
+      width: 1px;
+      height: 20px;
+      background: #ccc;
+      margin: 0 4px;
     }
 
     .palette-tile {
-      border-radius: 5px;
-      border: 2px solid rgba(0,0,0,0.2);
+      min-width: 40px;
+      height: 24px;
+      padding: 0 6px;
+      border-radius: 4px;
+      border: 1.5px solid rgba(0,0,0,0.2);
       display: flex;
       align-items: center;
       justify-content: center;
       font-weight: bold;
+      font-size: 10px;
       cursor: grab;
       user-select: none;
       transition: transform 0.15s ease, box-shadow 0.15s ease;
@@ -134,39 +116,25 @@
     }
 
     .palette-tile:hover {
-      transform: scale(1.05);
+      transform: scale(1.08);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
     }
 
     .palette-tile:active {
       cursor: grabbing;
-      transform: scale(1.08);
+      transform: scale(1.12);
       box-shadow: 0 4px 12px rgba(0,0,0,0.3);
       z-index: 100;
     }
 
     .palette-tile.white-bg {
-      border: 2px solid #333;
+      border: 1.5px solid #333;
       color: #333;
       background: white;
     }
 
     .palette-tile.dragging {
       opacity: 0.6;
-    }
-
-    /* Top and bottom palette containers */
-    .top-palettes, .bottom-palettes {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 4px;
-      padding: 4px 8px;
-      flex-shrink: 0;
-    }
-
-    .top-palettes .palette-section,
-    .bottom-palettes .palette-section {
-      margin: 2px 4px;
     }
 
     /* Word input section */
@@ -245,10 +213,19 @@
     }
 
     .right-panel {
-      width: 320px;
+      width: 280px;
       display: flex;
       flex-direction: column;
       gap: 8px;
+      transition: width 0.3s ease, opacity 0.3s ease, padding 0.3s ease;
+      overflow: hidden;
+    }
+
+    .right-panel.collapsed {
+      width: 0;
+      padding: 0;
+      opacity: 0;
+      pointer-events: none;
     }
 
     .right-panel .word-input-section {
@@ -258,6 +235,28 @@
     .right-panel .bracket-panel {
       flex: 1;
       min-height: 0;
+    }
+
+    /* Panel toggle button - in header */
+    .panel-toggle {
+      border: 1px solid #333;
+      background: white;
+      cursor: pointer;
+      border-radius: 6px;
+      font-size: 12px;
+      padding: 6px 10px;
+      transition: background 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .panel-toggle:hover {
+      background: #f0f0f0;
+    }
+
+    .panel-toggle .icon {
+      font-size: 10px;
     }
 
     /* Canvas wrapper - fills remaining space */
@@ -419,29 +418,24 @@
     <div class="header-right">
       <span id="export-status" class="export-status"></span>
       <button id="download-tree" class="export-btn">download tree</button>
+      <button class="panel-toggle" id="panel-toggle" title="Toggle bracket notation panel">
+        <span class="icon">☰</span> Panel
+      </button>
     </div>
   </header>
 
-  <div class="top-palettes">
-    <div class="palette-section clauses-section">
-      <div class="palette-row">
-        <div class="palette-tile white-bg" data-type="clause" data-value="S" data-abbrev="S" draggable="true">Sentence S</div>
-        <div class="palette-tile white-bg" data-type="clause" data-value="IC" data-abbrev="IC" draggable="true">Independent Clause IC</div>
-        <div class="palette-tile white-bg" data-type="clause" data-value="DC" data-abbrev="DC" draggable="true">Dependent Clause DC</div>
-        <div class="palette-tile white-bg" data-type="clause" data-value="RC" data-abbrev="RC" draggable="true">Relative Clause RC</div>
-        <div class="palette-tile white-bg" data-type="clause" data-value="CC" data-abbrev="CC" draggable="true">Complement Clause CC</div>
-      </div>
-    </div>
-
-    <div class="palette-section phrases-section">
-      <div class="palette-row">
-        <div class="palette-tile" data-type="phrase" data-value="NP" data-abbrev="NP" style="background-color: #F1948A; color: #000;" draggable="true">Noun Phrase NP</div>
-        <div class="palette-tile" data-type="phrase" data-value="VP" data-abbrev="VP" style="background-color: #58D68D; color: #000;" draggable="true">Verb Phrase VP</div>
-        <div class="palette-tile" data-type="phrase" data-value="PP" data-abbrev="PP" style="background-color: #D7BDE2; color: #000;" draggable="true">Prepositional Phrase PP</div>
-        <div class="palette-tile" data-type="phrase" data-value="ADJP" data-abbrev="ADJP" style="background-color: #F7DC6F; color: #000;" draggable="true">Adjective Phrase ADJP</div>
-        <div class="palette-tile" data-type="phrase" data-value="ADVP" data-abbrev="ADVP" style="background-color: #85C1E9; color: #000;" draggable="true">Adverb Phrase ADVP</div>
-      </div>
-    </div>
+  <div class="palette-bar">
+    <div class="palette-tile white-bg" data-type="clause" data-value="S" data-abbrev="S" draggable="true">S</div>
+    <div class="palette-tile white-bg" data-type="clause" data-value="IC" data-abbrev="IC" draggable="true">IC</div>
+    <div class="palette-tile white-bg" data-type="clause" data-value="DC" data-abbrev="DC" draggable="true">DC</div>
+    <div class="palette-tile white-bg" data-type="clause" data-value="RC" data-abbrev="RC" draggable="true">RC</div>
+    <div class="palette-tile white-bg" data-type="clause" data-value="CC" data-abbrev="CC" draggable="true">CC</div>
+    <div class="palette-divider"></div>
+    <div class="palette-tile" data-type="phrase" data-value="NP" data-abbrev="NP" style="background-color: #F1948A; color: #000;" draggable="true">NP</div>
+    <div class="palette-tile" data-type="phrase" data-value="VP" data-abbrev="VP" style="background-color: #58D68D; color: #000;" draggable="true">VP</div>
+    <div class="palette-tile" data-type="phrase" data-value="PP" data-abbrev="PP" style="background-color: #D7BDE2; color: #000;" draggable="true">PP</div>
+    <div class="palette-tile" data-type="phrase" data-value="ADJP" data-abbrev="ADJP" style="background-color: #F7DC6F; color: #000;" draggable="true">ADJP</div>
+    <div class="palette-tile" data-type="phrase" data-value="ADVP" data-abbrev="ADVP" style="background-color: #85C1E9; color: #000;" draggable="true">ADVP</div>
   </div>
 
   <div class="main-content">
@@ -450,6 +444,7 @@
       <div class="zoom-controls">
         <button id="zoom-in">+</button>
         <button id="zoom-out">-</button>
+        <button id="zoom-fit" title="Fit tree to view">Fit</button>
         <button id="zoom-reset">Reset</button>
       </div>
       <canvas id="diagram-canvas"></canvas>
@@ -475,29 +470,21 @@
     </div>
   </div>
 
-  <div class="bottom-palettes">
-    <div class="palette-section open-class-section">
-      <div class="palette-row">
-        <div class="palette-tile" data-type="pos" data-value="NOUN" data-abbrev="NOUN" style="background-color: #E74C3C; color: #000;" draggable="true">Noun NOUN</div>
-        <div class="palette-tile" data-type="pos" data-value="VERB" data-abbrev="VERB" style="background-color: #27AE60; color: #000;" draggable="true">Verb VERB</div>
-        <div class="palette-tile" data-type="pos" data-value="ADJ" data-abbrev="ADJ" style="background-color: #F1C40F; color: #000;" draggable="true">Adjective ADJ</div>
-        <div class="palette-tile" data-type="pos" data-value="ADV" data-abbrev="ADV" style="background-color: #3498DB; color: #000;" draggable="true">Adverb ADV</div>
-      </div>
-    </div>
-
-    <div class="palette-section closed-class-section">
-      <div class="palette-row">
-        <div class="palette-tile" data-type="pos" data-value="DET" data-abbrev="DET" style="background-color: #F39C12; color: #000;" draggable="true">Determiner DET</div>
-        <div class="palette-tile" data-type="pos" data-value="PRON" data-abbrev="PRON" style="background-color: #E67E22; color: #000;" draggable="true">Pronoun PRON</div>
-        <div class="palette-tile" data-type="pos" data-value="PREP" data-abbrev="PREP" style="background-color: #7D3C98; color: #000;" draggable="true">Preposition PREP</div>
-        <div class="palette-tile" data-type="pos" data-value="MOD" data-abbrev="MOD" style="background-color: #A3E4D7; color: #000;" draggable="true">Modal MOD</div>
-        <div class="palette-tile" data-type="pos" data-value="AUX" data-abbrev="AUX" style="background-color: #16A085; color: #000;" draggable="true">Auxiliary AUX</div>
-        <div class="palette-tile" data-type="pos" data-value="REL" data-abbrev="REL" style="background-color: #FCF3CF; color: #000;" draggable="true">Relativizer REL</div>
-        <div class="palette-tile" data-type="pos" data-value="COMP" data-abbrev="COMP" style="background-color: #FADBD8; color: #000;" draggable="true">Complementizer COMP</div>
-        <div class="palette-tile" data-type="pos" data-value="CONJ" data-abbrev="CONJ" style="background-color: #95A5A6; color: #000;" draggable="true">Conjunction CONJ</div>
-        <div class="palette-tile" data-type="pos" data-value="SUB" data-abbrev="SUB" style="background-color: #D5DBDB; color: #000;" draggable="true">Subordinator SUB</div>
-      </div>
-    </div>
+  <div class="palette-bar bottom">
+    <div class="palette-tile" data-type="pos" data-value="NOUN" data-abbrev="NOUN" style="background-color: #E74C3C; color: #000;" draggable="true">NOUN</div>
+    <div class="palette-tile" data-type="pos" data-value="VERB" data-abbrev="VERB" style="background-color: #27AE60; color: #000;" draggable="true">VERB</div>
+    <div class="palette-tile" data-type="pos" data-value="ADJ" data-abbrev="ADJ" style="background-color: #F1C40F; color: #000;" draggable="true">ADJ</div>
+    <div class="palette-tile" data-type="pos" data-value="ADV" data-abbrev="ADV" style="background-color: #3498DB; color: #000;" draggable="true">ADV</div>
+    <div class="palette-divider"></div>
+    <div class="palette-tile" data-type="pos" data-value="DET" data-abbrev="DET" style="background-color: #F39C12; color: #000;" draggable="true">DET</div>
+    <div class="palette-tile" data-type="pos" data-value="PRON" data-abbrev="PRON" style="background-color: #E67E22; color: #000;" draggable="true">PRON</div>
+    <div class="palette-tile" data-type="pos" data-value="PREP" data-abbrev="PREP" style="background-color: #7D3C98; color: #000;" draggable="true">PREP</div>
+    <div class="palette-tile" data-type="pos" data-value="MOD" data-abbrev="MOD" style="background-color: #A3E4D7; color: #000;" draggable="true">MOD</div>
+    <div class="palette-tile" data-type="pos" data-value="AUX" data-abbrev="AUX" style="background-color: #16A085; color: #000;" draggable="true">AUX</div>
+    <div class="palette-tile" data-type="pos" data-value="REL" data-abbrev="REL" style="background-color: #FCF3CF; color: #000;" draggable="true">REL</div>
+    <div class="palette-tile" data-type="pos" data-value="COMP" data-abbrev="COMP" style="background-color: #FADBD8; color: #000;" draggable="true">COMP</div>
+    <div class="palette-tile" data-type="pos" data-value="CONJ" data-abbrev="CONJ" style="background-color: #95A5A6; color: #000;" draggable="true">CONJ</div>
+    <div class="palette-tile" data-type="pos" data-value="SUB" data-abbrev="SUB" style="background-color: #D5DBDB; color: #000;" draggable="true">SUB</div>
   </div>
 
   <script src="tree-model.js"></script>
