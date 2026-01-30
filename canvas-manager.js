@@ -8,22 +8,22 @@ class CanvasManager {
     this.canvas = new fabric.Canvas(canvasId);
     this.tree = tree;
 
-    // Tile dimensions - compact for better space usage
-    this.TILE_WIDTH = 60;
-    this.TILE_HEIGHT = 28;
-    this.TERMINAL_WIDTH = 55;
-    this.TERMINAL_HEIGHT = 24;
+    // Tile dimensions
+    this.TILE_WIDTH = 85;
+    this.TILE_HEIGHT = 40;
+    this.TERMINAL_WIDTH = 85;
+    this.TERMINAL_HEIGHT = 34;
 
-    // Layout settings - tighter spacing to fit more on screen
-    this.UNIT_WIDTH = 90;       // Compact horizontal spacing
-    this.LEVEL_HEIGHT = 70;     // Compact vertical spacing
-    this.TOP_MARGIN = 30;       // Top margin
+    // Layout settings
+    this.UNIT_WIDTH = 145;      // Horizontal spacing for larger tiles
+    this.LEVEL_HEIGHT = 105;    // Vertical spacing for larger tiles
+    this.TOP_MARGIN = 40;       // Top margin
     this.ANIMATION_DURATION = 150;
 
-    // Auto-connection settings - adjusted for compact layout
-    this.CONNECTION_THRESHOLD = 200; // pixels - max distance to auto-connect
-    this.DISCONNECT_THRESHOLD = 300; // pixels - distance to auto-disconnect (larger for hysteresis)
-    this.MIN_VERTICAL_GAP = 20; // parent must be at least this many pixels above child
+    // Auto-connection settings
+    this.CONNECTION_THRESHOLD = 360; // pixels - max distance to auto-connect
+    this.DISCONNECT_THRESHOLD = 540; // pixels - distance to auto-disconnect (larger for hysteresis)
+    this.MIN_VERTICAL_GAP = 25; // parent must be at least this many pixels above child
     this.HORIZONTAL_WEIGHT = 1.5; // penalize horizontal distance more than vertical
 
     // Preview line for potential connection
@@ -208,7 +208,7 @@ class CanvasManager {
     });
 
     const text = new fabric.Text(label, {
-      fontSize: 11,
+      fontSize: 14,
       fontWeight: 'bold',
       fill: colors.text,
       textAlign: 'center',
@@ -242,18 +242,18 @@ class CanvasManager {
     });
 
     const label = new fabric.Text(text || '...', {
-      fontSize: 10,
+      fontSize: 16,
       fill: colors.text,
       textAlign: 'center',
       originX: 'center',
       originY: 'center',
-      top: isEmpty ? -4 : 0,
+      top: isEmpty ? -8 : 0,
       fontFamily: 'system-ui, sans-serif'
     });
 
-    const hint = new fabric.Text('Ctrl+click', {
-      fontSize: 9,
-      fill: '#888',
+    const hint = new fabric.Text('Ctrl+click to type', {
+      fontSize: 10,
+      fill: '#999',
       textAlign: 'center',
       originX: 'center',
       originY: 'center',
@@ -1384,13 +1384,14 @@ class CanvasManager {
 
     const line = new fabric.Line([pCenter.x, pCenter.y, cCenter.x, cCenter.y], {
       stroke: '#333',
-      strokeWidth: 2,
+      strokeWidth: 3,
       selectable: false,
       evented: true,
       isConnectionLine: true,
       hoverCursor: 'pointer',
       parentNodeId: parent.id,
-      childNodeId: child.id
+      childNodeId: child.id,
+      padding: 5
     });
 
     // Click to disconnect
@@ -1401,12 +1402,12 @@ class CanvasManager {
 
     // Hover effect
     line.on('mouseover', () => {
-      line.set({ stroke: '#cc0000', strokeWidth: 3 });
+      line.set({ stroke: '#cc0000', strokeWidth: 4 });
       this.canvas.requestRenderAll();
     });
 
     line.on('mouseout', () => {
-      line.set({ stroke: '#333', strokeWidth: 2 });
+      line.set({ stroke: '#333', strokeWidth: 3 });
       this.canvas.requestRenderAll();
     });
 
@@ -1427,23 +1428,38 @@ class CanvasManager {
       return;
     }
 
-    // Calculate spans for each subtree
-    const spans = new Map();
-    const calculateSpan = (node) => {
+    // Bottom-up layout: position leaves first, then center parents over children
+
+    // Step 1: Calculate leaf count for each subtree (for width allocation)
+    const leafCounts = new Map();
+    const calculateLeafCount = (node) => {
       if (node.children.length === 0) {
-        spans.set(node.id, 1);
+        leafCounts.set(node.id, 1);
         return 1;
       }
       let sum = 0;
       for (const child of node.children) {
-        sum += calculateSpan(child);
+        sum += calculateLeafCount(child);
       }
-      spans.set(node.id, Math.max(1, sum));
-      return Math.max(1, sum);
+      leafCounts.set(node.id, sum);
+      return sum;
     };
 
     for (const root of this.tree.roots) {
-      calculateSpan(root);
+      calculateLeafCount(root);
+    }
+
+    // Step 2: Calculate depth for each node
+    const depths = new Map();
+    const calculateDepth = (node, depth) => {
+      depths.set(node.id, depth);
+      for (const child of node.children) {
+        calculateDepth(child, depth + 1);
+      }
+    };
+
+    for (const root of this.tree.roots) {
+      calculateDepth(root, 0);
     }
 
     // Sort roots by current x position
@@ -1454,48 +1470,96 @@ class CanvasManager {
       return tileA.getCenterPoint().x - tileB.getCenterPoint().x;
     });
 
-    // Calculate total width
-    let totalUnits = 0;
-    for (let i = 0; i < this.tree.roots.length; i++) {
-      totalUnits += spans.get(this.tree.roots[i].id);
-      if (i < this.tree.roots.length - 1) totalUnits += 1; // gap
-    }
-
-    const totalPx = totalUnits * this.UNIT_WIDTH;
-    const startX = Math.max(60, (this.canvas.getWidth() - totalPx) / 2);
-
-    // Calculate target positions
-    const targets = new Map();
-
-    const assignTargets = (node, leftPx, depth) => {
-      const spanUnits = spans.get(node.id) || 1;
-      const centerX = leftPx + (spanUnits * this.UNIT_WIDTH) / 2;
-      const y = this.TOP_MARGIN + depth * this.LEVEL_HEIGHT;
-
-      const tile = this.nodeToCanvas.get(node.id);
-      if (tile) {
-        const groupWidth = tile.width || (tile.isTerminalTile ? this.TERMINAL_WIDTH : this.TILE_WIDTH);
-        targets.set(node.id, {
-          left: centerX - groupWidth / 2,
-          top: y
-        });
-      }
-
-      // Assign children
-      let childLeftPx = leftPx;
-      for (const child of node.children) {
-        const childSpan = spans.get(child.id) || 1;
-        assignTargets(child, childLeftPx, depth + 1);
-        childLeftPx += childSpan * this.UNIT_WIDTH;
+    // Step 3: Collect all leaves in left-to-right order
+    const leaves = [];
+    const collectLeaves = (node) => {
+      if (node.children.length === 0) {
+        leaves.push(node);
+      } else {
+        for (const child of node.children) {
+          collectLeaves(child);
+        }
       }
     };
 
-    let cursorUnits = 0;
-    for (let i = 0; i < this.tree.roots.length; i++) {
-      const root = this.tree.roots[i];
-      const leftPx = startX + cursorUnits * this.UNIT_WIDTH;
-      assignTargets(root, leftPx, 0);
-      cursorUnits += spans.get(root.id) + (i < this.tree.roots.length - 1 ? 1 : 0);
+    for (const root of this.tree.roots) {
+      collectLeaves(root);
+    }
+
+    // Step 4: Determine starting X position (anchor to first root)
+    const totalLeaves = leaves.length;
+    const totalPx = totalLeaves * this.UNIT_WIDTH;
+
+    let startX;
+    const firstRoot = this.tree.roots[0];
+    const firstRootTile = this.nodeToCanvas.get(firstRoot.id);
+    if (firstRootTile) {
+      const currentCenterX = firstRootTile.getCenterPoint().x;
+      const firstRootLeafCount = leafCounts.get(firstRoot.id) || 1;
+      const firstRootCenterOffset = (firstRootLeafCount * this.UNIT_WIDTH) / 2;
+      startX = currentCenterX - firstRootCenterOffset;
+      startX = Math.max(60, startX);
+    } else {
+      startX = Math.max(60, (this.canvas.getWidth() - totalPx) / 2);
+    }
+
+    // Step 5: Position leaves with fixed spacing
+    const targets = new Map();
+
+    for (let i = 0; i < leaves.length; i++) {
+      const leaf = leaves[i];
+      const tile = this.nodeToCanvas.get(leaf.id);
+      if (tile) {
+        const centerX = startX + (i + 0.5) * this.UNIT_WIDTH;
+        const depth = depths.get(leaf.id);
+        const y = this.TOP_MARGIN + depth * this.LEVEL_HEIGHT;
+        const width = tile.item(0).width || this.TILE_WIDTH;
+        targets.set(leaf.id, {
+          left: centerX - width / 2,
+          top: y,
+          centerX: centerX
+        });
+      }
+    }
+
+    // Step 6: Position parents bottom-up, centered over their children
+    const positionParent = (node) => {
+      if (node.children.length === 0) {
+        return; // Already positioned
+      }
+
+      // First position all children
+      for (const child of node.children) {
+        positionParent(child);
+      }
+
+      // Find leftmost and rightmost child centers
+      let minX = Infinity, maxX = -Infinity;
+      for (const child of node.children) {
+        const childTarget = targets.get(child.id);
+        if (childTarget) {
+          minX = Math.min(minX, childTarget.centerX);
+          maxX = Math.max(maxX, childTarget.centerX);
+        }
+      }
+
+      // Center this node over its children
+      const centerX = (minX + maxX) / 2;
+      const depth = depths.get(node.id);
+      const y = this.TOP_MARGIN + depth * this.LEVEL_HEIGHT;
+      const tile = this.nodeToCanvas.get(node.id);
+      if (tile) {
+        const width = tile.item(0).width || this.TILE_WIDTH;
+        targets.set(node.id, {
+          left: centerX - width / 2,
+          top: y,
+          centerX: centerX
+        });
+      }
+    };
+
+    for (const root of this.tree.roots) {
+      positionParent(root);
     }
 
     // Animate to targets
@@ -1651,11 +1715,11 @@ class CanvasManager {
       this.tree.connect(node, terminal);
       const terminalTile = this.createTileForNode(terminal);
 
-      // Position terminal directly below parent's center
-      tile.setCoords();
-      const parentCenterX = tile.left + tile.width / 2;
-      const terminalY = y + this.LEVEL_HEIGHT;
-      this.positionTileAtDropImmediate(terminalTile, parentCenterX, terminalY);
+      // Position terminal directly below parent using parent's actual center
+      const parentCenter = tile.getCenterPoint();
+      const terminalY = parentCenter.y + this.LEVEL_HEIGHT;
+      this.positionTileAtDropImmediate(terminalTile, parentCenter.x, terminalY);
+      this.animateTileDrop(terminalTile, terminalY);
 
       lowestY = terminalY;
 

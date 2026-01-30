@@ -239,7 +239,7 @@ function setupExportButtons(canvasManager) {
   document.getElementById('copy-tree').addEventListener('click', async () => {
     try {
       setStatus('Copying...');
-      const dataURL = await canvasManager.exportPNG(3);
+      const dataURL = await canvasManager.exportPNG(4);
       const res = await fetch(dataURL);
       const blob = await res.blob();
 
@@ -253,7 +253,7 @@ function setupExportButtons(canvasManager) {
       console.error('Copy failed:', err);
       // Fallback: open in new tab
       try {
-        const dataURL = await canvasManager.exportPNG(3);
+        const dataURL = await canvasManager.exportPNG(4);
         window.open(dataURL, '_blank');
         setStatus('Opened in new tab');
       } catch (e2) {
@@ -267,7 +267,7 @@ function setupExportButtons(canvasManager) {
   document.getElementById('download-tree').addEventListener('click', async () => {
     try {
       setStatus('Preparing...');
-      const dataURL = await canvasManager.exportPNG(3);
+      const dataURL = await canvasManager.exportPNG(4);
 
       const a = document.createElement('a');
       a.href = dataURL;

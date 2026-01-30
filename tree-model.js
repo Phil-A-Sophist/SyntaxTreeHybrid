@@ -23,65 +23,65 @@ const NodeColors = {
   IP: { bg: '#ffffff', text: '#000000', border: '#333333' },
   TP: { bg: '#ffffff', text: '#000000', border: '#333333' },
 
-  // Phrases - colored
-  NP: { bg: '#F1948A', text: '#000000', border: '#333333' },
-  VP: { bg: '#58D68D', text: '#000000', border: '#333333' },
-  PP: { bg: '#D7BDE2', text: '#000000', border: '#333333' },
-  ADJP: { bg: '#F7DC6F', text: '#000000', border: '#333333' },
-  ADVP: { bg: '#85C1E9', text: '#000000', border: '#333333' },
-  DP: { bg: '#F5B7B1', text: '#000000', border: '#333333' },
+  // Phrases - darker shades
+  NP: { bg: '#E74C3C', text: '#000000', border: '#333333' },
+  VP: { bg: '#27AE60', text: '#000000', border: '#333333' },
+  PP: { bg: '#7D3C98', text: '#000000', border: '#333333' },
+  ADJP: { bg: '#F1C40F', text: '#000000', border: '#333333' },
+  ADVP: { bg: '#3498DB', text: '#000000', border: '#333333' },
+  DP: { bg: '#F39C12', text: '#000000', border: '#333333' },
 
-  // POS - colored (full names)
-  NOUN: { bg: '#E74C3C', text: '#000000', border: '#333333' },
-  VERB: { bg: '#27AE60', text: '#000000', border: '#333333' },
-  ADJ: { bg: '#F1C40F', text: '#000000', border: '#333333' },
-  ADV: { bg: '#3498DB', text: '#000000', border: '#333333' },
-  DET: { bg: '#F39C12', text: '#000000', border: '#333333' },
-  PRON: { bg: '#E67E22', text: '#000000', border: '#333333' },
-  PREP: { bg: '#7D3C98', text: '#000000', border: '#333333' },
-  CONJ: { bg: '#95A5A6', text: '#000000', border: '#333333' },
+  // POS - lighter shades (full names)
+  NOUN: { bg: '#F1948A', text: '#000000', border: '#333333' },
+  VERB: { bg: '#58D68D', text: '#000000', border: '#333333' },
+  ADJ: { bg: '#F7DC6F', text: '#000000', border: '#333333' },
+  ADV: { bg: '#85C1E9', text: '#000000', border: '#333333' },
+  DET: { bg: '#FAD7A0', text: '#000000', border: '#333333' },
+  PRON: { bg: '#F5B7B1', text: '#000000', border: '#333333' },
+  PREP: { bg: '#D7BDE2', text: '#000000', border: '#333333' },
+  CONJ: { bg: '#BFC9CA', text: '#000000', border: '#333333' },
   MOD: { bg: '#A3E4D7', text: '#000000', border: '#333333' },
-  AUX: { bg: '#16A085', text: '#000000', border: '#333333' },
+  AUX: { bg: '#76D7C4', text: '#000000', border: '#333333' },
   SUB: { bg: '#D5DBDB', text: '#000000', border: '#333333' },
   REL: { bg: '#FCF3CF', text: '#000000', border: '#333333' },
   COMP: { bg: '#FADBD8', text: '#000000', border: '#333333' },
 
   // POS - common single-letter abbreviations (same colors as full names)
-  N: { bg: '#E74C3C', text: '#000000', border: '#333333' },    // Noun
-  V: { bg: '#27AE60', text: '#000000', border: '#333333' },    // Verb
-  A: { bg: '#F1C40F', text: '#000000', border: '#333333' },    // Adjective
-  P: { bg: '#7D3C98', text: '#000000', border: '#333333' },    // Preposition
-  D: { bg: '#F39C12', text: '#000000', border: '#333333' },    // Determiner
-  C: { bg: '#95A5A6', text: '#000000', border: '#333333' },    // Conjunction/Complementizer
-  T: { bg: '#16A085', text: '#000000', border: '#333333' },    // Tense
-  I: { bg: '#16A085', text: '#000000', border: '#333333' },    // Inflection
+  N: { bg: '#F1948A', text: '#000000', border: '#333333' },    // Noun
+  V: { bg: '#58D68D', text: '#000000', border: '#333333' },    // Verb
+  A: { bg: '#F7DC6F', text: '#000000', border: '#333333' },    // Adjective
+  P: { bg: '#D7BDE2', text: '#000000', border: '#333333' },    // Preposition
+  D: { bg: '#FAD7A0', text: '#000000', border: '#333333' },    // Determiner
+  C: { bg: '#BFC9CA', text: '#000000', border: '#333333' },    // Conjunction/Complementizer
+  T: { bg: '#76D7C4', text: '#000000', border: '#333333' },    // Tense
+  I: { bg: '#76D7C4', text: '#000000', border: '#333333' },    // Inflection
 
   // Penn Treebank style POS tags
-  NN: { bg: '#E74C3C', text: '#000000', border: '#333333' },   // Noun
-  NNS: { bg: '#E74C3C', text: '#000000', border: '#333333' },  // Noun plural
-  NNP: { bg: '#E74C3C', text: '#000000', border: '#333333' },  // Proper noun
-  NNPS: { bg: '#E74C3C', text: '#000000', border: '#333333' }, // Proper noun plural
-  VB: { bg: '#27AE60', text: '#000000', border: '#333333' },   // Verb base
-  VBD: { bg: '#27AE60', text: '#000000', border: '#333333' },  // Verb past tense
-  VBG: { bg: '#27AE60', text: '#000000', border: '#333333' },  // Verb gerund
-  VBN: { bg: '#27AE60', text: '#000000', border: '#333333' },  // Verb past participle
-  VBP: { bg: '#27AE60', text: '#000000', border: '#333333' },  // Verb non-3rd person
-  VBZ: { bg: '#27AE60', text: '#000000', border: '#333333' },  // Verb 3rd person singular
-  JJ: { bg: '#F1C40F', text: '#000000', border: '#333333' },   // Adjective
-  JJR: { bg: '#F1C40F', text: '#000000', border: '#333333' },  // Adjective comparative
-  JJS: { bg: '#F1C40F', text: '#000000', border: '#333333' },  // Adjective superlative
-  RB: { bg: '#3498DB', text: '#000000', border: '#333333' },   // Adverb
-  RBR: { bg: '#3498DB', text: '#000000', border: '#333333' },  // Adverb comparative
-  RBS: { bg: '#3498DB', text: '#000000', border: '#333333' },  // Adverb superlative
-  IN: { bg: '#7D3C98', text: '#000000', border: '#333333' },   // Preposition/subordinating conj
-  DT: { bg: '#F39C12', text: '#000000', border: '#333333' },   // Determiner
-  PRP: { bg: '#E67E22', text: '#000000', border: '#333333' },  // Personal pronoun
-  'PRP$': { bg: '#E67E22', text: '#000000', border: '#333333' }, // Possessive pronoun
-  WP: { bg: '#E67E22', text: '#000000', border: '#333333' },   // Wh-pronoun
-  WDT: { bg: '#F39C12', text: '#000000', border: '#333333' },  // Wh-determiner
-  WRB: { bg: '#3498DB', text: '#000000', border: '#333333' },  // Wh-adverb
-  MD: { bg: '#16A085', text: '#000000', border: '#333333' },   // Modal
-  TO: { bg: '#7D3C98', text: '#000000', border: '#333333' },   // "to"
+  NN: { bg: '#F1948A', text: '#000000', border: '#333333' },   // Noun
+  NNS: { bg: '#F1948A', text: '#000000', border: '#333333' },  // Noun plural
+  NNP: { bg: '#F1948A', text: '#000000', border: '#333333' },  // Proper noun
+  NNPS: { bg: '#F1948A', text: '#000000', border: '#333333' }, // Proper noun plural
+  VB: { bg: '#58D68D', text: '#000000', border: '#333333' },   // Verb base
+  VBD: { bg: '#58D68D', text: '#000000', border: '#333333' },  // Verb past tense
+  VBG: { bg: '#58D68D', text: '#000000', border: '#333333' },  // Verb gerund
+  VBN: { bg: '#58D68D', text: '#000000', border: '#333333' },  // Verb past participle
+  VBP: { bg: '#58D68D', text: '#000000', border: '#333333' },  // Verb non-3rd person
+  VBZ: { bg: '#58D68D', text: '#000000', border: '#333333' },  // Verb 3rd person singular
+  JJ: { bg: '#F7DC6F', text: '#000000', border: '#333333' },   // Adjective
+  JJR: { bg: '#F7DC6F', text: '#000000', border: '#333333' },  // Adjective comparative
+  JJS: { bg: '#F7DC6F', text: '#000000', border: '#333333' },  // Adjective superlative
+  RB: { bg: '#85C1E9', text: '#000000', border: '#333333' },   // Adverb
+  RBR: { bg: '#85C1E9', text: '#000000', border: '#333333' },  // Adverb comparative
+  RBS: { bg: '#85C1E9', text: '#000000', border: '#333333' },  // Adverb superlative
+  IN: { bg: '#D7BDE2', text: '#000000', border: '#333333' },   // Preposition/subordinating conj
+  DT: { bg: '#FAD7A0', text: '#000000', border: '#333333' },   // Determiner
+  PRP: { bg: '#F5B7B1', text: '#000000', border: '#333333' },  // Personal pronoun
+  'PRP$': { bg: '#F5B7B1', text: '#000000', border: '#333333' }, // Possessive pronoun
+  WP: { bg: '#F5B7B1', text: '#000000', border: '#333333' },   // Wh-pronoun
+  WDT: { bg: '#FAD7A0', text: '#000000', border: '#333333' },  // Wh-determiner
+  WRB: { bg: '#85C1E9', text: '#000000', border: '#333333' },  // Wh-adverb
+  MD: { bg: '#A3E4D7', text: '#000000', border: '#333333' },   // Modal
+  TO: { bg: '#D7BDE2', text: '#000000', border: '#333333' },   // "to"
 
   // Terminal - white
   TERMINAL: { bg: '#ffffff', text: '#000000', border: '#999999' }
