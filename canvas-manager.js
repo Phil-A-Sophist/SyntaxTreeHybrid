@@ -2074,12 +2074,34 @@ class CanvasManager {
     };
   }
 
-  async exportPNG(multiplier = 3) {
+  async exportPNG(multiplier = 4) {
+    // Save current state
     const prevBg = this.canvas.backgroundColor;
+    const prevVpt = this.canvas.viewportTransform.slice();
+
+    // Reset viewport to identity (no zoom/pan) for accurate export
+    this.canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
     this.canvas.backgroundColor = '#ffffff';
     this.canvas.requestRenderAll();
 
     const bounds = this.getTightBounds();
+
+    // Add a border rectangle (3px like the app canvas border)
+    const borderWidth = 3;
+    const borderRect = new fabric.Rect({
+      left: bounds.left,
+      top: bounds.top,
+      width: bounds.width - borderWidth,
+      height: bounds.height - borderWidth,
+      fill: 'transparent',
+      stroke: '#333333',
+      strokeWidth: borderWidth,
+      selectable: false,
+      evented: false
+    });
+    this.canvas.add(borderRect);
+    this.canvas.requestRenderAll();
+
     const dataURL = this.canvas.toDataURL({
       format: 'png',
       left: bounds.left,
@@ -2089,6 +2111,11 @@ class CanvasManager {
       multiplier
     });
 
+    // Remove the temporary border
+    this.canvas.remove(borderRect);
+
+    // Restore previous state
+    this.canvas.setViewportTransform(prevVpt);
     this.canvas.backgroundColor = prevBg || null;
     this.canvas.requestRenderAll();
 
