@@ -3,7 +3,8 @@
     "allow": [
       "Bash(dir:*)",
       "Bash(gh repo create:*)",
-      "Bash(where gh:*)"
+      "Bash(where gh:*)",
+      "Bash(where:*)"
     ]
   }
 }

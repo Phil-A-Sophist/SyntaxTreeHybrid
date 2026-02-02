@@ -1,0 +1,11 @@
+SyntaxTreeHybrid UX Test Log
+Generated: 2026-01-27T15:17:58.691974
+======================================================================
+
+Test: 24_Coordination
+Type: SIBLING_ORDER
+Description: Sibling order not updated after drag
+Expected: 'S' should move to end
+Actual: Order is still ['S', 'CONJ', 'S']
+----------------------------------------
+
