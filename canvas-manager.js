@@ -9,20 +9,25 @@ class CanvasManager {
     this.tree = tree;
 
     // Tile dimensions
-    this.TILE_WIDTH = 85;
-    this.TILE_HEIGHT = 40;
-    this.TERMINAL_WIDTH = 85;
-    this.TERMINAL_HEIGHT = 34;
+    this.TILE_WIDTH = 72;
+    this.TILE_HEIGHT = 32;
+    this.TERMINAL_WIDTH = 72;
+    this.TERMINAL_HEIGHT = 28;
 
-    // Layout settings
-    this.UNIT_WIDTH = 145;      // Horizontal spacing for larger tiles
-    this.LEVEL_HEIGHT = 105;    // Vertical spacing for larger tiles
-    this.TOP_MARGIN = 40;       // Top margin
+    // Layout settings (spacious for editing)
+    this.UNIT_WIDTH = 155;
+    this.LEVEL_HEIGHT = 110;
+    this.TOP_MARGIN = 35;
     this.ANIMATION_DURATION = 150;
 
+    // Condensed layout for export only
+    this.EXPORT_UNIT_WIDTH = 105;
+    this.EXPORT_LEVEL_HEIGHT = 75;
+    this.EXPORT_TOP_MARGIN = 25;
+
     // Auto-connection settings
-    this.CONNECTION_THRESHOLD = 360; // pixels - max distance to auto-connect
-    this.DISCONNECT_THRESHOLD = 540; // pixels - distance to auto-disconnect (larger for hysteresis)
+    this.CONNECTION_THRESHOLD = 200; // pixels - max distance to auto-connect
+    this.DISCONNECT_THRESHOLD = 320; // pixels - distance to auto-disconnect (larger for hysteresis)
     this.MIN_VERTICAL_GAP = 25; // parent must be at least this many pixels above child
     this.HORIZONTAL_WEIGHT = 1.5; // penalize horizontal distance more than vertical
 
@@ -208,7 +213,7 @@ class CanvasManager {
     });
 
     const text = new fabric.Text(label, {
-      fontSize: 14,
+      fontSize: 12,
       fontWeight: 'bold',
       fill: colors.text,
       textAlign: 'center',
@@ -242,22 +247,22 @@ class CanvasManager {
     });
 
     const label = new fabric.Text(text || '...', {
-      fontSize: 16,
+      fontSize: 13,
       fill: colors.text,
       textAlign: 'center',
       originX: 'center',
       originY: 'center',
-      top: isEmpty ? -8 : 0,
+      top: isEmpty ? -6 : 0,
       fontFamily: 'system-ui, sans-serif'
     });
 
     const hint = new fabric.Text('Ctrl+click to type', {
-      fontSize: 10,
+      fontSize: 9,
       fill: '#999',
       textAlign: 'center',
       originX: 'center',
       originY: 'center',
-      top: 5,
+      top: 4,
       fontFamily: 'system-ui, sans-serif',
       visible: isEmpty
     });
@@ -1400,7 +1405,7 @@ class CanvasManager {
 
     const line = new fabric.Line([pCenter.x, pCenter.y, cCenter.x, cCenter.y], {
       stroke: '#333',
-      strokeWidth: 3,
+      strokeWidth: 2.5,
       selectable: false,
       evented: true,
       isConnectionLine: true,
@@ -1418,12 +1423,12 @@ class CanvasManager {
 
     // Hover effect
     line.on('mouseover', () => {
-      line.set({ stroke: '#cc0000', strokeWidth: 4 });
+      line.set({ stroke: '#cc0000', strokeWidth: 3.5 });
       this.canvas.requestRenderAll();
     });
 
     line.on('mouseout', () => {
-      line.set({ stroke: '#333', strokeWidth: 3 });
+      line.set({ stroke: '#333', strokeWidth: 2.5 });
       this.canvas.requestRenderAll();
     });
 
@@ -2122,6 +2127,20 @@ class CanvasManager {
     const prevBg = this.canvas.backgroundColor;
     const prevVpt = this.canvas.viewportTransform.slice();
 
+    // Save editing layout constants
+    const prevUnitWidth = this.UNIT_WIDTH;
+    const prevLevelHeight = this.LEVEL_HEIGHT;
+    const prevTopMargin = this.TOP_MARGIN;
+
+    // Switch to condensed export layout
+    this.UNIT_WIDTH = this.EXPORT_UNIT_WIDTH;
+    this.LEVEL_HEIGHT = this.EXPORT_LEVEL_HEIGHT;
+    this.TOP_MARGIN = this.EXPORT_TOP_MARGIN;
+
+    // Apply condensed layout without animation
+    this._suppressRelayout = false;
+    this.relayout(false);
+
     // Reset viewport to identity (no zoom/pan) for accurate export
     this.canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
     this.canvas.backgroundColor = '#ffffff';
@@ -2157,7 +2176,15 @@ class CanvasManager {
     // Remove the temporary border
     this.canvas.remove(borderRect);
 
-    // Restore previous state
+    // Restore editing layout constants
+    this.UNIT_WIDTH = prevUnitWidth;
+    this.LEVEL_HEIGHT = prevLevelHeight;
+    this.TOP_MARGIN = prevTopMargin;
+
+    // Restore editing layout without animation
+    this.relayout(false);
+
+    // Restore previous viewport
     this.canvas.setViewportTransform(prevVpt);
     this.canvas.backgroundColor = prevBg || null;
     this.canvas.requestRenderAll();
