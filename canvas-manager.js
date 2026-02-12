@@ -322,16 +322,16 @@ class CanvasManager {
       }
 
       if (isDragging) {
-        // Capture drop position BEFORE finalizeAutoConnection (which may trigger relayout)
-        const dropX = tile.left + this.TILE_WIDTH / 2;
-        const dropY = tile.top + this.TILE_HEIGHT / 2;
-
-        // Update node position first so reordering uses correct x coordinate
-        node.x = dropX;
-        node.y = dropY;
+        // Capture drop position using actual tile center
+        const dropCenter = tile.getCenterPoint();
+        node.x = dropCenter.x;
+        node.y = dropCenter.y;
 
         // Finalize auto-connection based on final position
         this.finalizeAutoConnection(node, tile);
+
+        // Sync all sibling positions from canvas tiles before reordering
+        this.syncSiblingPositions(node);
 
         // Reorder siblings based on horizontal position
         node.reorderByPosition();
@@ -1279,6 +1279,22 @@ class CanvasManager {
     }
   }
 
+  /**
+   * Sync all sibling node x positions from their current canvas tile positions.
+   * This ensures reorderByPosition() uses accurate positions, not stale values.
+   */
+  syncSiblingPositions(node) {
+    if (!node.parent) return;
+    for (const sibling of node.parent.children) {
+      if (sibling !== node) {
+        const siblingTile = this.nodeToCanvas.get(sibling.id);
+        if (siblingTile) {
+          sibling.x = siblingTile.getCenterPoint().x;
+        }
+      }
+    }
+  }
+
   // === Connection Lines ===
 
   updateConnectionLines() {
@@ -1562,6 +1578,15 @@ class CanvasManager {
       positionParent(root);
     }
 
+    // Keep node.x/y in sync with layout positions for accurate reordering
+    for (const [nodeId, target] of targets) {
+      const node = this.tree.findById(nodeId);
+      if (node) {
+        node.x = target.centerX;
+        node.y = target.top;
+      }
+    }
+
     // Animate to targets
     if (animate) {
       this.animateToTargets(targets);
@@ -1677,8 +1702,16 @@ class CanvasManager {
       const tile = this.createTileForNode(terminal);
       this.positionTileAtDropImmediate(tile, x, y);
 
+      // Set node position for accurate sibling reordering
+      terminal.x = x;
+
       // Auto-connect to nearest parent or insert between nodes
       this.finalizeAutoConnectionForDrop(terminal, tile);
+
+      // Reorder siblings based on drop position
+      this.syncSiblingPositions(terminal);
+      terminal.reorderByPosition();
+
       this.updateConnectionLines();
 
       // Animate the drop after positioning
@@ -1702,8 +1735,15 @@ class CanvasManager {
     const tile = this.createTileForNode(node);
     this.positionTileAtDropImmediate(tile, x, y);
 
+    // Set node position for accurate sibling reordering
+    node.x = x;
+
     // Auto-connect to nearest parent or insert between nodes
     this.finalizeAutoConnectionForDrop(node, tile);
+
+    // Reorder siblings based on drop position
+    this.syncSiblingPositions(node);
+    node.reorderByPosition();
 
     // For POS nodes, auto-create a terminal child
     let lowestY = y;
