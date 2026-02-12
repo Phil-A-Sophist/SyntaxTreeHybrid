@@ -66,7 +66,7 @@ function setupPaletteDragDrop(canvasManager) {
     this.classList.add('drag-over');
 
     // Show preview lines for potential connection at current drag position
-    const pointer = canvasManager.canvas.getPointer(e, true);
+    const pointer = canvasManager.canvas.getPointer(e);
     canvasManager.showDropPreview(pointer.x, pointer.y);
   });
 
@@ -86,8 +86,8 @@ function setupPaletteDragDrop(canvasManager) {
     try {
       const dropData = JSON.parse(data);
 
-      // Get pointer coordinates transformed for zoom/pan
-      const pointer = canvasManager.canvas.getPointer(e, true);
+      // Get pointer coordinates in canvas object space (accounts for zoom/pan)
+      const pointer = canvasManager.canvas.getPointer(e);
 
       canvasManager.handleDrop(dropData, pointer.x, pointer.y);
     } catch (error) {
