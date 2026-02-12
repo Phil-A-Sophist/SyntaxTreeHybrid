@@ -1696,6 +1696,12 @@ class CanvasManager {
   handleDrop(dropData, x, y) {
     const { type, value } = dropData;
 
+    // Suppress event-triggered relayouts during the entire drop operation.
+    // Tree events (root-added, nodes-connected) fire relayout via sync engine,
+    // which would run BEFORE we reorder siblings, corrupting node.x values.
+    // We do one correct relayout at the end instead.
+    this._suppressRelayout = true;
+
     if (type === 'terminal') {
       // Word dragged from palette input
       const terminal = this.tree.createNode(value, NodeType.TERMINAL);
@@ -1712,7 +1718,9 @@ class CanvasManager {
       this.syncSiblingPositions(terminal);
       terminal.reorderByPosition();
 
+      this._suppressRelayout = false;
       this.updateConnectionLines();
+      this.relayout(true);
 
       // Animate the drop after positioning
       this.animateTileDrop(tile, y);
@@ -1748,9 +1756,6 @@ class CanvasManager {
     // For POS nodes, auto-create a terminal child
     let lowestY = y;
     if (type === 'pos') {
-      // Suppress automatic relayout during this operation
-      this._suppressRelayout = true;
-
       const terminal = new TreeNode('...', NodeType.TERMINAL);
       this.tree.connect(node, terminal);
       const terminalTile = this.createTileForNode(terminal);
@@ -1762,14 +1767,12 @@ class CanvasManager {
       this.animateTileDrop(terminalTile, terminalY);
 
       lowestY = terminalY;
-
-      // Re-enable relayout
-      this._suppressRelayout = false;
     }
 
+    this._suppressRelayout = false;
     this.updateConnectionLines();
 
-    // Now trigger a single relayout with all tiles present
+    // Now trigger a single relayout with all tiles present and correct order
     this.relayout(true);
 
     // Smart auto-zoom if element is outside viewport
