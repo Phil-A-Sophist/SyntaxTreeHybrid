@@ -1,10 +1,43 @@
 {
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "hooks": {
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "echo '[MEMORY SYSTEM] Reading project state...' && cat .memory/state.md 2>/dev/null || echo 'No .memory/state.md found — run /memory-check to initialize.'",
+        "timeout": 30
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -Command \"if (Test-Path .git) { $status = git status --porcelain; if ($status) { echo '[GIT] Changes detected — will commit at task end.' } }\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  },
   "permissions": {
     "allow": [
+      "Bash(powershell:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(git:*)",
+      "Bash(python:*)",
+      "Bash(py:*)",
+      "Bash(ls:*)",
+      "Bash(find:*)",
+      "Bash(cat:*)",
+      "Bash(more:*)",
+      "Bash(where:*)",
       "Bash(dir:*)",
       "Bash(gh repo create:*)",
-      "Bash(where gh:*)",
-      "Bash(where:*)"
+      "Bash(gh api:*)",
+      "WebFetch",
+      "WebSearch"
     ]
   }
 }
