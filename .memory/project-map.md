@@ -11,6 +11,7 @@
 
 ## Configuration
 - package.json — npm package metadata; devDependency on @playwright/test ^1.58.0; commonjs module type
+- package-lock.json — npm lockfile for reproducible installs
 - playwright.config.js — Playwright test config: chromium project, headless, 30s timeout, ./tests directory
 - .claude/settings.local.json — Claude Code local permission settings
 
@@ -31,7 +32,7 @@
 - Examples and Saved Images/F25 - Sentence Diagram Patterns by Phillip - Complete.docx — Reference document with all sentence diagram patterns
 
 ## Memory System
-- .memory/instructions.md — Memory compression agent instructions
 - .memory/state.md — Current compressed project state (updated every task cycle)
 - .memory/project-map.md — This file
 - .memory/knowledge-base.md — Decisions, solutions, and accumulated knowledge
+- .memory/reference/project-context.md — Project context extracted from CLAUDE.md during v3 deployment

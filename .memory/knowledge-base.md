@@ -1,7 +1,7 @@
 # Knowledge Base — SyntaxTreeHybrid
 
 ## Architecture Pattern
-**Current approach:** Single-page app with no build step. All JS modules export via `window.*` globals. Scripts are loaded in dependency order in index.html: tree-model.js -> bracket-parser.js -> bracket-serializer.js -> canvas-manager.js -> sync-engine.js -> app.js. Fabric.js 5.2.4 loaded from CDN.
+**Current approach:** Single-page app with no build step. All JS modules export via `window.*` globals. Scripts are loaded in dependency order in index.html: tree-model.js -> bracket-parser.js -> bracket-serializer.js -> canvas-manager.js -> sync-engine.js -> app.js. Fabric.js 5.2.4 loaded from CDN. GitHub repo: `Phil-A-Sophist/SyntaxTreeHybrid`.
 **Previously tried:** N/A (initial architecture).
 **Context:** The app is designed as a teaching/learning tool for linguistics. Simplicity of deployment (just open the HTML file) is a priority.
 
