@@ -3,9 +3,13 @@
   "hooks": {
     "SessionStart": [
       {
-        "type": "command",
-        "command": "echo '[MEMORY SYSTEM] Reading project state...' && cat .memory/state.md 2>/dev/null || echo 'No .memory/state.md found — run /memory-check to initialize.'",
-        "timeout": 30
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '[MEMORY SYSTEM] Reading project state...' && cat .memory/state.md 2>/dev/null || echo 'No .memory/state.md found — run /memory-check to initialize.'",
+            "timeout": 30
+          }
+        ]
       }
     ],
     "PostToolUse": [
