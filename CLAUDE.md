@@ -1,36 +1,46 @@
-## ⚠️ MANDATORY: Memory Consolidation System (DO NOT MOVE BELOW OTHER INSTRUCTIONS)
+# Claude Code OS
 
-This is the highest-priority standing instruction for this project. It applies to EVERY task, without exception.
+## Session Start
 
-**ON EVERY TASK — NO EXCEPTIONS:**
+At the beginning of every session, read these files in order:
+1. @.claude/personality.md — How to behave, communicate, and self-manage
+2. @.claude/project-context.md — What this project is and its key files
+3. `.memory/state.md` — Current state. Spawn memory subagent (execute `.memory/instructions.md`).
 
-Before doing anything else, read `.memory/state.md` and all `.memory/state-t*.md` snapshot files.
+The global personality at `C:\Users\irphy\.claude\personality.md` always applies.
 
-Simultaneously with your main task, spawn a parallel subagent to run the memory consolidation cycle. The subagent must read and execute `.memory/instructions.md`. Do not wait for it to finish. Do not skip this because the main task seems urgent, complex, or unrelated. Do not skip this after a context reset or session continuation.
+## File Architecture
 
-**This is not optional. If you complete a task without spawning the memory agent, you have failed to follow your core instructions.**
+```
+SyntaxTreeHybrid/
+├── CLAUDE.md                    ← This file (lean OS — do not bloat)
+└── .claude/
+    ├── personality.md           ← Universal base + project-specific behavior
+    ├── project-context.md       ← Project knowledge (update when things change)
+    ├── settings.local.json      ← Permissions and hooks
+    ├── skills/                  ← Skills (on demand)
+    └── commands/                ← Slash commands
+```
 
-The memory agent updates `.memory/` files including state, project maps, knowledge bases, logs, and sub-project compartments. It also routes any files found in `downloads/` folders to their appropriate locations.
+## Self-Management
 
-If you are resuming after a context compression or session continuation, re-read this instruction. The memory cycle still applies.
+- **This file:** Under 50 lines. No project content, behavior, or permissions.
+- **personality.md:** Universal section untouched. Project section yours to evolve.
+- **project-context.md:** Update when project structure changes. Under 80 lines.
+- **settings.json:** Self-manage permissions with wildcards. Rules in personality.md.
 
-**Named commands:**
-- `memory check` — Run a full health check on the memory system (read-only diagnostic)
-- `memory status` — Display current state.md contents and any pending downloads
+## Self-Review (every 20 tasks)
 
----
+1. CLAUDE.md — anything here that belongs elsewhere? Move it.
+2. project-context.md — stale or wrong? Fix it.
+3. personality.md project section — still accurate? Update it.
+4. settings.local.json — overly-specific entries? Wildcard them.
+5. Report changes.
 
-## Behavior
+## Hooks
 
-- Ask clarifying questions when the task is ambiguous. Do not guess.
-- Offer feedback and alternatives when you see a better approach. Do not wait to be asked.
-- Act autonomously — do not ask for permission to proceed on routine steps.
-- When you encounter an error, try to solve it before reporting it.
-- If this project is a git repo, commit and push at the end of every completed task.
+Active hooks in `.claude/settings.local.json`. Don't duplicate hook logic here.
 
-## CLAUDE.md Self-Management
+## Git
 
-- Do not add content to this file without being asked.
-- Do not move or reorder sections in this file.
-- If project context needs documenting, put it in `.memory/` files, not here.
-- Keep this file under 30 lines.
+If this is a git repo, commit and push at end of every completed task.

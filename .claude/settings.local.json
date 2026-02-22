@@ -3,11 +3,11 @@
   "hooks": {
     "SessionStart": [
       {
+        "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "echo '[MEMORY SYSTEM] Reading project state...' && cat .memory/state.md 2>/dev/null || echo 'No .memory/state.md found — run /memory-check to initialize.'",
-            "timeout": 30
+            "command": "echo === MEMORY SYSTEM ACTIVE === && echo Spawn memory consolidation subagent NOW. Execute .memory/instructions.md && echo === Current State === && if exist .memory\\state.md (type .memory\\state.md) else (echo No state.md found — cold start needed)"
           }
         ]
       }
@@ -27,21 +27,7 @@
   },
   "permissions": {
     "allow": [
-      "Bash(powershell:*)",
-      "Bash(powershell -Command:*)",
-      "Bash(git:*)",
-      "Bash(python:*)",
-      "Bash(py:*)",
-      "Bash(ls:*)",
-      "Bash(find:*)",
-      "Bash(cat:*)",
-      "Bash(more:*)",
-      "Bash(where:*)",
-      "Bash(dir:*)",
-      "Bash(gh repo create:*)",
-      "Bash(gh api:*)",
-      "WebFetch",
-      "WebSearch"
+      "Bash(gh:*)"
     ]
   }
 }
