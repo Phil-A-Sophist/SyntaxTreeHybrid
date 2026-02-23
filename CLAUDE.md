@@ -17,7 +17,8 @@ SyntaxTreeHybrid/
 └── .claude/
     ├── personality.md           ← Universal base + project-specific behavior
     ├── project-context.md       ← Project knowledge (update when things change)
-    ├── settings.local.json      ← Permissions and hooks
+    ├── settings.json            ← Hooks, permissions, deny rules (committed)
+    ├── settings.local.json      ← Machine-specific overrides (gitignored)
     ├── skills/                  ← Skills (on demand)
     └── commands/                ← Slash commands
 ```
@@ -34,12 +35,12 @@ SyntaxTreeHybrid/
 1. CLAUDE.md — anything here that belongs elsewhere? Move it.
 2. project-context.md — stale or wrong? Fix it.
 3. personality.md project section — still accurate? Update it.
-4. settings.local.json — overly-specific entries? Wildcard them.
+4. settings.json — permissions still accurate? settings.local.json — machine-specific only?
 5. Report changes.
 
 ## Hooks
 
-Active hooks in `.claude/settings.local.json`. Don't duplicate hook logic here.
+Active hooks in `.claude/settings.json`. Machine overrides in `.claude/settings.local.json` (gitignored).
 
 ## Git
 
