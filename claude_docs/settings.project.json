@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python claude_docs/bootstrap/migrate_settings.py --session-start"
+            "command": "{{PYTHON}} claude_docs/bootstrap/migrate_settings.py --session-start"
           }
         ]
       }
@@ -18,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "powershell -Command \"if (Test-Path .git) { $status = git status --porcelain; if ($status) { echo '[GIT] Changes detected.' } }\"",
+            "command": "{{POST_TOOL_USE_COMMAND}}",
             "timeout": 10
           }
         ]

@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Read",
+      "Edit",
+      "Write",
+      "Glob",
+      "Grep",
+      "WebSearch",
+      "WebFetch(domain:*)",
+      "Bash(python:*)",
+      "Bash(python3:*)",
+      "Bash(py:*)",
+      "Bash(node:*)",
+      "Bash(npm:*)",
+      "Bash(npx:*)",
+      "Bash(pip:*)",
+      "Bash(pip3:*)",
+      "Bash(git:*)",
+      "Bash(cd:*)",
+      "Bash(ls:*)",
+      "Bash(dir:*)",
+      "Bash(cat:*)",
+      "Bash(type:*)",
+      "Bash(more:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(find:*)",
+      "Bash(where:*)",
+      "Bash(which:*)",
+      "Bash(echo:*)",
+      "Bash(mkdir:*)",
+      "Bash(cp:*)",
+      "Bash(copy:*)",
+      "Bash(move:*)",
+      "Bash(mv:*)",
+      "Bash(ren:*)",
+      "Bash(rename:*)",
+      "Bash(touch:*)",
+      "Bash(tree:*)",
+      "Bash(sort:*)",
+      "Bash(wc:*)",
+      "Bash(diff:*)",
+      "Bash(grep:*)",
+      "Bash(sed:*)",
+      "Bash(awk:*)",
+      "Bash(xxd:*)",
+      "Bash(tar:*)",
+      "Bash(unzip:*)",
+      "Bash(curl:*)",
+      "Bash(wget:*)",
+      "Bash(powershell:*)",
+      "Bash(powershell.exe:*)",
+      "Bash(cmd:*)",
+      "Bash(source:*)",
+      "Bash(done)",
+      "Bash(set:*)",
+      "Bash(export:*)",
+      "Bash(chmod:*)",
+      "Bash(\"{{HOME}}/*\")"
+    ],
+    "deny": [
+      "Bash(rm -rf /)",
+      "Bash(rm -rf ~)",
+      "Bash(rm -rf C:*)",
+      "Bash(del /s /q C:\\*)",
+      "Bash(format:*)",
+      "Bash(sudo rm -rf:*)",
+      "Bash(rmdir /s /q C:\\*)",
+      "Bash(shutdown:*)",
+      "Bash(reboot:*)",
+      "Bash(reg delete:*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"{{HOME}}/.claude/hooks/pre_tool_gate.py\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  },
+  "model": "sonnet"
+}

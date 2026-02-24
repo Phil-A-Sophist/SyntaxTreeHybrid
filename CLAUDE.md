@@ -7,21 +7,32 @@ At the beginning of every session, read these files in order:
 2. @.claude/project-context.md — What this project is and its key files
 3. `.memory/state.md` — Current state. Spawn memory subagent (execute `.memory/instructions.md`).
 
-The global personality at `C:\Users\irphy\.claude\personality.md` always applies.
+The global personality at `C:\\Users\\irphy\\.claude\\personality.md` always applies.
 
 ## File Architecture
 
 ```
 SyntaxTreeHybrid/
 ├── CLAUDE.md                    ← This file (lean OS — do not bloat)
+├── claude_docs/                 ← Portable config (travels with git)
+│   ├── bootstrap/migrate_settings.py  ← Run once on new machine, then auto
+│   ├── commands/                ← Master slash commands
+│   ├── hooks/                   ← Master global hook scripts
+│   ├── settings.global.json     ← Master for ~/.claude/settings.json
+│   ├── settings.project.json    ← Master for .claude/settings.json
+│   └── settings.local.template.json   ← Template only, never overwritten
 └── .claude/
     ├── personality.md           ← Universal base + project-specific behavior
     ├── project-context.md       ← Project knowledge (update when things change)
-    ├── settings.json            ← Hooks, permissions, deny rules (committed)
+    ├── settings.json            ← Auto-rebuilt by migrate_settings on each launch
     ├── settings.local.json      ← Machine-specific overrides (gitignored)
     ├── skills/                  ← Skills (on demand)
-    └── commands/                ← Slash commands
+    └── commands/                ← Auto-rebuilt by migrate_settings on each launch
 ```
+
+## New Machine Setup
+
+Clone → run `python claude_docs/bootstrap/migrate_settings.py` once → auto-migrates via SessionStart hook on every future launch.
 
 ## Self-Management
 
