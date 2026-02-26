@@ -241,9 +241,12 @@ def check_file_locations(project_root):
     if not claude_docs.exists():
         return issues
 
+    # Home directory: .claude/personality.md IS the global personality — not a stale copy
+    is_home = project_root.resolve() == Path.home().resolve()
+
     personality_dir = claude_docs / 'personality'
 
-    if (project_root / '.claude' / 'personality.md').exists():
+    if not is_home and (project_root / '.claude' / 'personality.md').exists():
         issues.append(Issue('files', 'CRITICAL',
                             'personality.md is in .claude/ — won\'t travel with git',
                             'Move to claude_docs/personality/personality.md'))
