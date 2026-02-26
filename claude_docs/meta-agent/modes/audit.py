@@ -126,7 +126,8 @@ def check_memory_health(project_root):
     if main_log.exists() and state_md.exists():
         try:
             log_tasks = re.findall(r'Task\s+(\d+)', main_log.read_text(encoding='utf-8'))
-            state_tasks = re.findall(r'Task[:\s]+(\d+)', state_md.read_text(encoding='utf-8'))
+            # Use 'Task: N' (colon) only — avoids matching future task refs in notes
+            state_tasks = re.findall(r'Task:\s*(\d+)', state_md.read_text(encoding='utf-8'))
             if log_tasks and state_tasks:
                 lag = max(int(t) for t in state_tasks) - max(int(t) for t in log_tasks)
                 if lag > 2:
