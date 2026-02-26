@@ -183,6 +183,49 @@ def check_settings_placement(project_dir):
         except Exception:
             pass
 
+    # Personality file location checks — only for repos with portable architecture
+    if (project_dir / "claude_docs").exists():
+        # personality.md: wrong-location checks fire independently of correct location
+        personality_old_claude = project_dir / ".claude" / "personality.md"
+        personality_old_root = project_dir / "personality.md"
+        personality_correct = project_dir / "claude_docs" / "personality" / "personality.md"
+
+        if personality_old_claude.exists():
+            issues.append(Issue("settings", "CRITICAL",
+                "personality.md is in .claude/ — it won't travel with git",
+                "Move personality.md to claude_docs/personality/ and delete .claude/personality.md"))
+        if personality_old_root.exists():
+            issues.append(Issue("settings", "CRITICAL",
+                "personality.md is at project root — move to claude_docs/personality/",
+                "Move personality.md to claude_docs/personality/"))
+        if not personality_correct.exists() and not personality_old_claude.exists() and not personality_old_root.exists():
+            issues.append(Issue("settings", "WARNING",
+                "personality.md not found at claude_docs/personality/",
+                "Create claude_docs/personality/personality.md"))
+
+        # project-personality.md: check wrong locations AND wrong filename
+        ctx_old_name = project_dir / "claude_docs" / "personality" / "project-context.md"
+        ctx_old_claude = project_dir / ".claude" / "project-personality.md"
+        ctx_old_root = project_dir / "project-personality.md"
+        ctx_correct = project_dir / "claude_docs" / "personality" / "project-personality.md"
+
+        if ctx_old_name.exists():
+            issues.append(Issue("settings", "CRITICAL",
+                "project-context.md found at claude_docs/personality/ — rename to project-personality.md",
+                "Rename project-context.md to project-personality.md in claude_docs/personality/"))
+        if ctx_old_claude.exists():
+            issues.append(Issue("settings", "CRITICAL",
+                "project-personality.md is in .claude/ — it won't travel with git",
+                "Move project-personality.md to claude_docs/personality/ and delete .claude/project-personality.md"))
+        if ctx_old_root.exists():
+            issues.append(Issue("settings", "CRITICAL",
+                "project-personality.md is at project root — move to claude_docs/personality/",
+                "Move project-personality.md to claude_docs/personality/"))
+        if not ctx_correct.exists() and not ctx_old_claude.exists() and not ctx_old_root.exists() and not ctx_old_name.exists():
+            issues.append(Issue("settings", "WARNING",
+                "project-personality.md not found at claude_docs/personality/",
+                "Create claude_docs/personality/project-personality.md"))
+
     return issues
 
 
@@ -190,7 +233,7 @@ def check_settings_placement(project_dir):
 
 def check_memory_health(project_dir):
     issues = []
-    memory_dir = project_dir / ".memory"
+    memory_dir = project_dir / "claude_docs" / "memory"
     if not memory_dir.exists():
         return issues
 
@@ -213,11 +256,11 @@ def check_memory_health(project_dir):
 
     if not (memory_dir / "project-map.md").exists():
         issues.append(Issue("memory", "CRITICAL", "project-map.md is missing",
-            "Create .memory/project-map.md"))
+            "Create claude_docs/memory/project-map.md"))
 
     if not (memory_dir / "knowledge-base.md").exists():
         issues.append(Issue("memory", "WARNING", "knowledge-base.md is missing",
-            "Create .memory/knowledge-base.md"))
+            "Create claude_docs/memory/knowledge-base.md"))
 
     # Session log freshness
     logs_dir = memory_dir / "logs"
@@ -241,7 +284,7 @@ def check_memory_health(project_dir):
         items = [f for f in downloads.iterdir() if not f.name.startswith(".")]
         if items:
             issues.append(Issue("memory", "WARNING",
-                f"Unrouted items in .memory/downloads/: {', '.join(f.name for f in items[:3])}",
+                f"Unrouted items in claude_docs/memory/downloads/: {', '.join(f.name for f in items[:3])}",
                 "Route downloaded files to their proper locations"))
 
     return issues
@@ -262,33 +305,52 @@ def check_claude_md(project_dir):
         if len(lines) > CLAUDE_MD_MAX_LINES:
             issues.append(Issue("claude_md", "CRITICAL",
                 f"CLAUDE.md is {len(lines)} lines (max: {CLAUDE_MD_MAX_LINES})",
-                "Move content to project-context.md or personality.md"))
+                "Move content to project-personality.md or personality.md"))
 
         lower = content.lower()
         for indicator in ["pip install", "npm install", "requirements.txt", "package.json", "tech stack"]:
             if indicator in lower:
                 issues.append(Issue("claude_md", "WARNING",
-                    f"CLAUDE.md contains '{indicator}' — belongs in project-context.md",
-                    "Move technical details to .claude/project-context.md"))
+                    f"CLAUDE.md contains '{indicator}' — belongs in project-personality.md",
+                    "Move technical details to claude_docs/personality/project-personality.md"))
                 break
 
         for indicator in ["you are a", "you should", "always respond", "communication style", "tone:"]:
             if indicator in lower:
                 issues.append(Issue("claude_md", "WARNING",
                     f"CLAUDE.md contains '{indicator}' — belongs in personality.md",
-                    "Move behavior content to .claude/personality.md"))
+                    "Move behavior content to claude_docs/personality/personality.md"))
                 break
+
+        # Old path references should no longer appear in CLAUDE.md
+        old_patterns = [
+            "@.claude/personality.md",
+            "@.claude/project-personality.md",
+            "@personality.md",
+            "@project-personality.md",
+        ]
+        for pattern in old_patterns:
+            if pattern in content:
+                issues.append(Issue("claude_md", "CRITICAL",
+                    f"CLAUDE.md references '{pattern}' (old path)",
+                    "Update to @claude_docs/personality/personality.md and @claude_docs/personality/project-personality.md"))
+
+        # Correct paths should be present
+        if "@claude_docs/personality/personality.md" not in content:
+            issues.append(Issue("claude_md", "WARNING",
+                "CLAUDE.md does not reference @claude_docs/personality/personality.md",
+                "Add to Session Start section"))
     except Exception:
         pass
 
-    ctx = project_dir / ".claude" / "project-context.md"
+    ctx = project_dir / "claude_docs" / "personality" / "project-personality.md"
     if ctx.exists():
         try:
             ctx_lines = len(ctx.read_text(encoding="utf-8").strip().split("\n"))
             if ctx_lines > PROJECT_CONTEXT_MAX_LINES:
                 issues.append(Issue("claude_md", "WARNING",
-                    f"project-context.md is {ctx_lines} lines (target: ≤{PROJECT_CONTEXT_MAX_LINES})",
-                    "Move detail to .memory/reference/"))
+                    f"project-personality.md is {ctx_lines} lines (target: ≤{PROJECT_CONTEXT_MAX_LINES})",
+                    "Move detail to claude_docs/memory/reference/"))
         except Exception:
             pass
 

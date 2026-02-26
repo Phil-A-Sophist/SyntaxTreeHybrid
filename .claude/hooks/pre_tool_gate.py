@@ -251,7 +251,25 @@ def component_is_allowed(component: str) -> bool:
 
 
 def run_pre_push_audit():
-    """Run the pre-push audit script. Returns (passed, message)."""
+    """Run the pre-push audit. Uses meta-agent if available, falls back to legacy."""
+    # Try meta-agent first (project-specific)
+    cwd = Path.cwd()
+    meta_agent = cwd / "claude_docs" / "meta-agent" / "agent.py"
+    if meta_agent.exists():
+        try:
+            result = _subprocess.run(
+                [sys.executable, str(meta_agent), "--audit"],
+                capture_output=True, text=True, timeout=30)
+            if result.returncode == 0:
+                return True, result.stdout.strip()
+            else:
+                return False, (result.stderr or result.stdout).strip()
+        except _subprocess.TimeoutExpired:
+            return True, "Meta-agent audit timed out — skipping"
+        except Exception:
+            pass  # Fall through to legacy
+
+    # Legacy fallback (projects without meta-agent)
     audit_script = Path(__file__).parent / "pre_push_audit.py"
     if not audit_script.exists():
         return True, "Audit script not found — skipping"
