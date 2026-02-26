@@ -108,7 +108,7 @@ def check_memory_health(project_root):
             lines = state_md.read_text(encoding='utf-8').strip().split('\n')
             if len(lines) > STATE_MD_MAX_LINES:
                 issues.append(Issue('memory', 'WARNING',
-                                    f'state.md is {len(lines)} lines (target ≤{STATE_MD_MAX_LINES})',
+                                    f'state.md is {len(lines)} lines (target <={STATE_MD_MAX_LINES})',
                                     'Compress state.md'))
             if not any(re.search(r'Task[:\s]+\d+', ln) for ln in lines):
                 issues.append(Issue('memory', 'CRITICAL',
