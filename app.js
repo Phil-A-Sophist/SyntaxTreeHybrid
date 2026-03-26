@@ -71,17 +71,23 @@ function setupPaletteDragDrop(canvasManager) {
     // Show preview lines for potential connection at current drag position
     const pointer = canvasManager.canvas.getPointer(e);
     canvasManager.showDropPreview(pointer.x, pointer.y);
+
+    // Show magnifying lens during palette drag
+    canvasManager.showLens();
+    canvasManager.updateLens(e.clientX, e.clientY);
   });
 
   canvasElement.addEventListener('dragleave', function() {
     this.classList.remove('drag-over');
     canvasManager.hideDropPreview();
+    canvasManager.hideLens();
   });
 
   canvasElement.addEventListener('drop', function(e) {
     e.preventDefault();
     this.classList.remove('drag-over');
     canvasManager.hideDropPreview();
+    canvasManager.hideLens();
 
     const data = e.dataTransfer.getData('text/plain');
     if (!data) return;
