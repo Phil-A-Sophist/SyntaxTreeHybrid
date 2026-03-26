@@ -204,6 +204,11 @@ class CanvasManager {
     });
 
     this.canvas.on('mouse:move', (opt) => {
+      // Update magnifying lens during tile drag
+      if (this._isDraggingTile && opt.e) {
+        this.updateLens(opt.e.clientX, opt.e.clientY);
+      }
+
       if (this.isDraggingCanvas) {
         const e = opt.e;
         const vpt = this.canvas.viewportTransform;
@@ -414,7 +419,7 @@ class CanvasManager {
     let dragStartPosition = { x: 0, y: 0 };
     let isDragging = false;
 
-    tile.on('moving', (opt) => {
+    tile.on('moving', () => {
       isDragging = true;
       const currentPos = { x: tile.left, y: tile.top };
       const deltaX = currentPos.x - lastPosition.x;
@@ -428,11 +433,6 @@ class CanvasManager {
       this.handleAutoConnectionPreview(node, tile);
 
       this.updateConnectionLines();
-
-      // Update magnifying lens
-      if (opt.e) {
-        this.updateLens(opt.e.clientX, opt.e.clientY);
-      }
     });
 
     tile.on('mousedown', (e) => {
@@ -1199,6 +1199,9 @@ class CanvasManager {
 
     this.lensCanvas.style.left = lensLeft + 'px';
     this.lensCanvas.style.top = lensTop + 'px';
+
+    // Force render so lowerCanvasEl has the latest frame
+    this.canvas.renderAll();
 
     // Draw magnified content from the Fabric.js lower canvas
     const sourceCanvas = this.canvas.lowerCanvasEl;
