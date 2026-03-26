@@ -202,22 +202,6 @@ function setupZoomControls(canvasManager) {
     canvasManager.canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
   });
 
-  // Panel toggle
-  const panelToggle = document.getElementById('panel-toggle');
-  const rightPanel = document.querySelector('.right-panel');
-
-  panelToggle.addEventListener('click', () => {
-    rightPanel.classList.toggle('collapsed');
-    const isCollapsed = rightPanel.classList.contains('collapsed');
-    panelToggle.innerHTML = isCollapsed
-      ? '<span class="icon">☰</span> Show Panel'
-      : '<span class="icon">☰</span> Panel';
-
-    // Resize canvas after transition
-    setTimeout(() => {
-      canvasManager.resizeCanvas();
-    }, 350);
-  });
 }
 
 /**
