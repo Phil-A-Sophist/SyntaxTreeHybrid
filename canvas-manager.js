@@ -876,13 +876,16 @@ class CanvasManager {
         if (parentNode.isTerminal()) continue;
 
         // Structural constraints for insertion (result: parent→node→child)
-        // 1. Terminals and POS nodes can never be inserted between other nodes
-        if (node.isTerminal() || node.nodeType === NodeType.POS) continue;
-        // 2. If child is a terminal, the only valid inserted parent is a POS
-        //    (terminals can only have POS parents) — so skip non-POS insertions
+        // Validate node as child of parent:
+        //   word → parent must be POS; everything else → parent must be phrase/clause
+        if (node.isTerminal() && parentNode.nodeType !== NodeType.POS) continue;
+        if (!node.isTerminal() &&
+            parentNode.nodeType !== NodeType.PHRASE && parentNode.nodeType !== NodeType.CLAUSE) continue;
+        // Validate child as child of node:
+        //   word → node must be POS; everything else → node must be phrase/clause
         if (childNode.isTerminal() && node.nodeType !== NodeType.POS) continue;
-        // 3. POS→terminal edges are locked — never insert between them
-        if (parentNode.nodeType === NodeType.POS) continue;
+        if (!childNode.isTerminal() &&
+            node.nodeType !== NodeType.PHRASE && node.nodeType !== NodeType.CLAUSE) continue;
 
         const parentTile = this.nodeToCanvas.get(parentNode.id);
         const childTile = this.nodeToCanvas.get(childNode.id);
@@ -954,8 +957,10 @@ class CanvasManager {
    * or null if not between any siblings.
    */
   findSiblingInsertionZone(node, tile) {
-    // Terminals and POS nodes don't participate in sibling insertion
-    if (node.isTerminal() || node.nodeType === NodeType.POS) return null;
+    // Sibling insertion adds node as child of parent — apply child rules:
+    // Words can only be children of POS; everything else only of phrase/clause
+    // Since sibling insertion means becoming a child of the parent, check that
+    if (node.isTerminal()) return null; // words can't be siblings (need POS parent, not phrase/clause)
 
     const nodeCenter = tile.getCenterPoint();
     let bestMatch = null;
@@ -965,8 +970,8 @@ class CanvasManager {
       if (parentNode === node || parentNode.isTerminal()) continue;
       if (parentNode.children.length < 2) continue;
       if (node.isAncestorOf(parentNode)) continue;
-      // No sibling insertion into POS parents (they only get one terminal child)
-      if (parentNode.nodeType === NodeType.POS) continue;
+      // Node as child of parent: must be phrase or clause
+      if (parentNode.nodeType !== NodeType.PHRASE && parentNode.nodeType !== NodeType.CLAUSE) continue;
 
       const parentTile = this.nodeToCanvas.get(parentNode.id);
       if (!parentTile) continue;
@@ -1041,22 +1046,17 @@ class CanvasManager {
       // Skip terminal nodes - they can't be parents
       if (node.isTerminal()) continue;
 
-      // Structural constraints:
-      // Terminal (word) can only connect to a POS parent
+      // Structural constraints (child perspective):
+      // 1. Words can only connect to a POS parent
       if (childNode.isTerminal() && node.nodeType !== NodeType.POS) continue;
+      // 2. Everything else (POS, phrase, clause) can only connect to a phrase or clause parent
+      if (!childNode.isTerminal() &&
+          node.nodeType !== NodeType.PHRASE && node.nodeType !== NodeType.CLAUSE) continue;
 
-      // POS can only have one child (a terminal/word) — skip if POS already has a child
+      // POS can only have one child — skip if POS already has a child
       // (unless the child being dragged IS that existing child)
       if (node.nodeType === NodeType.POS && node.children.length > 0 &&
           !node.children.includes(childNode)) continue;
-
-      // Terminal can only connect to POS; non-terminal cannot connect to POS as child
-      // (POS's only child must be a terminal)
-      if (node.nodeType === NodeType.POS && !childNode.isTerminal()) continue;
-
-      // POS can only have a phrase (or clause) as parent — skip non-phrase/clause parents for POS children
-      if (childNode.nodeType === NodeType.POS &&
-          node.nodeType !== NodeType.PHRASE && node.nodeType !== NodeType.CLAUSE) continue;
 
       const tileCenter = tile.getCenterPoint();
 
