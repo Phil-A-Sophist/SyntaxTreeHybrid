@@ -133,53 +133,84 @@ class CanvasManager {
   }
 
   // Shift-hold zoom: 3x zoom centered on cursor, restore on release
+  // Works during canvas tile drags and palette drags
   setupShiftZoom() {
+    const activateZoom = () => {
+      if (this._preShiftZoom !== null) return; // already zoomed
+
+      // Save current zoom state
+      this._preShiftZoom = this.canvas.getZoom();
+      this._preShiftVpt = this.canvas.viewportTransform.slice();
+
+      // Get cursor position (use last known mouse position or canvas center)
+      const pointer = this._lastPointer || {
+        x: this.canvas.getWidth() / 2,
+        y: this.canvas.getHeight() / 2
+      };
+
+      // Zoom to SHIFT_ZOOM_LEVEL centered on cursor
+      const targetZoom = this._preShiftZoom * this.SHIFT_ZOOM_LEVEL;
+      this.canvas.zoomToPoint(pointer, targetZoom);
+
+      // If dragging a Fabric.js object, recalculate its position in the new viewport
+      // so it doesn't jump. The object's canvas coords stay the same, but the
+      // viewport changed, so we need Fabric.js to re-sync its internal tracking.
+      const activeObj = this.canvas.getActiveObject();
+      if (activeObj) {
+        activeObj.setCoords();
+      }
+
+      this.canvas.requestRenderAll();
+    };
+
+    const deactivateZoom = () => {
+      if (this._preShiftZoom === null) return;
+
+      // Restore previous zoom state
+      this.canvas.setViewportTransform(this._preShiftVpt);
+
+      const activeObj = this.canvas.getActiveObject();
+      if (activeObj) {
+        activeObj.setCoords();
+      }
+
+      this._preShiftZoom = null;
+      this._preShiftVpt = null;
+      this.canvas.requestRenderAll();
+    };
+
     const onKeyDown = (e) => {
-      if (e.key === 'Shift' && !e.repeat && this._preShiftZoom === null) {
-        // Save current zoom state
-        this._preShiftZoom = this.canvas.getZoom();
-        this._preShiftVpt = this.canvas.viewportTransform.slice();
-
-        // Get cursor position (use last known mouse position or canvas center)
-        const pointer = this._lastPointer || {
-          x: this.canvas.getWidth() / 2,
-          y: this.canvas.getHeight() / 2
-        };
-
-        // Zoom to SHIFT_ZOOM_LEVEL centered on cursor
-        const targetZoom = this._preShiftZoom * this.SHIFT_ZOOM_LEVEL;
-        this.canvas.zoomToPoint(pointer, targetZoom);
-        this.canvas.requestRenderAll();
+      if (e.key === 'Shift' && !e.repeat) {
+        activateZoom();
       }
     };
 
     const onKeyUp = (e) => {
-      if (e.key === 'Shift' && this._preShiftZoom !== null) {
-        // Restore previous zoom state
-        this.canvas.setViewportTransform(this._preShiftVpt);
-        this._preShiftZoom = null;
-        this._preShiftVpt = null;
-        this.canvas.requestRenderAll();
+      if (e.key === 'Shift') {
+        deactivateZoom();
       }
     };
 
-    // Track mouse position for zoom centering
+    // Track mouse position for zoom centering (works during all mouse activity)
     this.canvas.on('mouse:move', (opt) => {
       if (opt.e) {
         this._lastPointer = { x: opt.e.offsetX, y: opt.e.offsetY };
       }
     });
 
+    // Also track during HTML5 dragover (palette drags)
+    const upperCanvas = this.canvas.upperCanvasEl;
+    if (upperCanvas) {
+      upperCanvas.addEventListener('dragover', (e) => {
+        this._lastPointer = { x: e.offsetX, y: e.offsetY };
+      });
+    }
+
     document.addEventListener('keydown', onKeyDown);
     document.addEventListener('keyup', onKeyUp);
     // Also restore if window loses focus while shift is held
     window.addEventListener('blur', () => {
-      if (this._preShiftZoom !== null) {
-        this.canvas.setViewportTransform(this._preShiftVpt);
-        this._preShiftZoom = null;
-        this._preShiftVpt = null;
-        this.canvas.requestRenderAll();
-      }
+      deactivateZoom();
     });
   }
 
