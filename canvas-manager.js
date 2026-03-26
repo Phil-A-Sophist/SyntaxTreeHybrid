@@ -876,13 +876,19 @@ class CanvasManager {
         if (parentNode.isTerminal()) continue;
 
         // Structural constraints for insertion (result: parent→node→child)
+        // Words cannot be inserted (they can't have children)
+        if (node.isTerminal()) continue;
+        // POS can only have one word child — can only be inserted if child is a word
+        // and the POS has no other children
+        if (node.nodeType === NodeType.POS) {
+          if (!childNode.isTerminal()) continue; // POS only parents words
+        }
         // Validate node as child of parent:
         //   word → parent must be POS; everything else → parent must be phrase/clause
         if (node.isTerminal() && parentNode.nodeType !== NodeType.POS) continue;
         if (!node.isTerminal() &&
             parentNode.nodeType !== NodeType.PHRASE && parentNode.nodeType !== NodeType.CLAUSE) continue;
         // Validate child as child of node:
-        //   word → node must be POS; everything else → node must be phrase/clause
         if (childNode.isTerminal() && node.nodeType !== NodeType.POS) continue;
         if (!childNode.isTerminal() &&
             node.nodeType !== NodeType.PHRASE && node.nodeType !== NodeType.CLAUSE) continue;
@@ -1043,20 +1049,21 @@ class CanvasManager {
       // Skip if this node is a descendant of the child (would create cycle)
       if (childNode.isAncestorOf(node)) continue;
 
-      // Skip terminal nodes - they can't be parents
+      // === Parent-perspective constraints ===
+      // Words cannot be parents (no children allowed)
       if (node.isTerminal()) continue;
+      // POS can only have one child, and it must be a word
+      if (node.nodeType === NodeType.POS) {
+        if (!childNode.isTerminal()) continue; // POS only parents words
+        if (node.children.length > 0 && !node.children.includes(childNode)) continue; // max one child
+      }
 
-      // Structural constraints (child perspective):
-      // 1. Words can only connect to a POS parent
+      // === Child-perspective constraints ===
+      // Words can only connect to a POS parent
       if (childNode.isTerminal() && node.nodeType !== NodeType.POS) continue;
-      // 2. Everything else (POS, phrase, clause) can only connect to a phrase or clause parent
+      // Everything else (POS, phrase, clause) can only connect to a phrase or clause parent
       if (!childNode.isTerminal() &&
           node.nodeType !== NodeType.PHRASE && node.nodeType !== NodeType.CLAUSE) continue;
-
-      // POS can only have one child — skip if POS already has a child
-      // (unless the child being dragged IS that existing child)
-      if (node.nodeType === NodeType.POS && node.children.length > 0 &&
-          !node.children.includes(childNode)) continue;
 
       const tileCenter = tile.getCenterPoint();
 
