@@ -739,11 +739,14 @@ class CanvasManager {
         // Skip if parent is a terminal (can't have children)
         if (parentNode.isTerminal()) continue;
 
-        // Structural constraints: no insertion involving POS→terminal edges
-        // POS can only have one terminal child — don't allow inserting between them
-        if (parentNode.nodeType === NodeType.POS && childNode.isTerminal()) continue;
-        // Don't let terminals or POS nodes be inserted between other nodes
+        // Structural constraints for insertion (result: parent→node→child)
+        // 1. Terminals and POS nodes can never be inserted between other nodes
         if (node.isTerminal() || node.nodeType === NodeType.POS) continue;
+        // 2. If child is a terminal, the only valid inserted parent is a POS
+        //    (terminals can only have POS parents) — so skip non-POS insertions
+        if (childNode.isTerminal() && node.nodeType !== NodeType.POS) continue;
+        // 3. POS→terminal edges are locked — never insert between them
+        if (parentNode.nodeType === NodeType.POS) continue;
 
         const parentTile = this.nodeToCanvas.get(parentNode.id);
         const childTile = this.nodeToCanvas.get(childNode.id);
