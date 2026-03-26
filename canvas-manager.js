@@ -334,6 +334,32 @@ class CanvasManager {
   // === Tile Creation ===
 
   createTileForNode(node) {
+    // POS nodes render as compound tiles (POS + word in one object)
+    if (node.nodeType === NodeType.POS) {
+      const terminalChild = node.children.find(c => c.isTerminal());
+      const wordText = terminalChild ? terminalChild.label : '...';
+      const tile = this.createCompoundTile(node.label, wordText, node.nodeType);
+
+      tile.treeNodeId = node.id;
+      node.canvasObject = tile;
+      this.nodeToCanvas.set(node.id, tile);
+
+      // Also map the terminal child to this same tile (for lookups)
+      if (terminalChild) {
+        terminalChild.canvasObject = tile;
+        this.nodeToCanvas.set(terminalChild.id, tile);
+      }
+
+      this.setupTileEvents(tile, node);
+      this.canvas.add(tile);
+      return tile;
+    }
+
+    // Skip standalone terminals that are children of POS (handled by compound tile)
+    if (node.isTerminal() && node.parent && node.parent.nodeType === NodeType.POS) {
+      return null;
+    }
+
     const colors = getNodeColors(node.label, node.nodeType);
     let tile;
 
@@ -351,6 +377,100 @@ class CanvasManager {
     this.canvas.add(tile);
 
     return tile;
+  }
+
+  createCompoundTile(posLabel, wordText, nodeType) {
+    const posColors = getNodeColors(posLabel, NodeType.POS);
+    const posFontSize = this.presentationMode ? this.PRESENT_POS_FONT_SIZE : this.EDIT_POS_FONT_SIZE;
+    const wordFontSize = this.presentationMode ? this.PRESENT_TERMINAL_FONT_SIZE : this.EDIT_TERMINAL_FONT_SIZE;
+
+    // POS label text
+    const posText = new fabric.Text(posLabel, {
+      fontSize: posFontSize,
+      fontWeight: 'bold',
+      fill: posColors.text,
+      textAlign: 'center',
+      originX: 'center',
+      originY: 'center',
+      fontFamily: "'Segoe UI Semibold', 'SF Pro Text', 'Helvetica Neue', sans-serif"
+    });
+    const posTextWidth = posText.calcTextWidth ? posText.calcTextWidth() : posText.width;
+
+    // Word text
+    const isEmpty = !wordText || wordText === '...';
+    const wordObj = new fabric.Text(wordText || '...', {
+      fontSize: wordFontSize,
+      fill: isEmpty ? '#999' : '#000',
+      textAlign: 'center',
+      originX: 'center',
+      originY: 'center',
+      fontFamily: "'Segoe UI', 'SF Pro Text', 'Helvetica Neue', sans-serif"
+    });
+    const wordTextWidth = wordObj.calcTextWidth ? wordObj.calcTextWidth() : wordObj.width;
+
+    // Compute widths
+    const posWidth = Math.max(this.POS_TILE_WIDTH, posTextWidth + this.POS_TILE_PADDING);
+    const wordWidth = Math.max(this.TERMINAL_WIDTH, wordTextWidth + this.TERMINAL_PADDING);
+    const totalWidth = Math.max(posWidth, wordWidth);
+
+    // Short connector line height
+    const lineHeight = 12;
+    const posHeight = this.POS_TILE_HEIGHT;
+    const wordHeight = this.TERMINAL_HEIGHT;
+    const totalHeight = posHeight + lineHeight + wordHeight;
+
+    // POS rect (top)
+    const posRect = new fabric.Rect({
+      width: posWidth,
+      height: posHeight,
+      fill: posColors.bg,
+      rx: 4, ry: 4,
+      stroke: posColors.border,
+      strokeWidth: 1,
+      originX: 'center',
+      originY: 'center',
+      top: -(totalHeight / 2) + posHeight / 2
+    });
+    posText.set({ top: -(totalHeight / 2) + posHeight / 2 });
+
+    // Connector line (middle)
+    const lineTop = -(totalHeight / 2) + posHeight;
+    const lineBottom = lineTop + lineHeight;
+    const connLine = new fabric.Line([0, lineTop, 0, lineBottom], {
+      stroke: '#666',
+      strokeWidth: 1,
+      originX: 'center',
+      originY: 'center'
+    });
+
+    // Word rect (bottom)
+    const wordColors = getNodeColors(wordText, NodeType.TERMINAL);
+    const wordRect = new fabric.Rect({
+      width: wordWidth,
+      height: wordHeight,
+      fill: wordColors.bg,
+      rx: 3, ry: 3,
+      stroke: wordColors.border,
+      strokeWidth: 1,
+      originX: 'center',
+      originY: 'center',
+      top: (totalHeight / 2) - wordHeight / 2
+    });
+    wordObj.set({ top: (totalHeight / 2) - wordHeight / 2 });
+
+    const group = new fabric.Group([posRect, posText, connLine, wordRect, wordObj], {
+      hasControls: false,
+      lockScalingX: true,
+      lockScalingY: true
+    });
+
+    // Force dimensions to match content
+    group.set({ width: totalWidth, height: totalHeight });
+    group.setCoords();
+
+    group.isCompoundTile = true;
+
+    return group;
   }
 
   createStandardTile(label, colors, nodeType) {
@@ -753,8 +873,14 @@ class CanvasManager {
     const node = this.tree.findById(tile.treeNodeId);
     if (!node) return;
 
-    const textObj = tile.item(1);
-    const currentText = textObj.text;
+    // For compound tiles (POS), edit the word (terminal child)
+    let editNode = node;
+    if (tile.isCompoundTile && node.nodeType === NodeType.POS) {
+      const terminalChild = node.children.find(c => c.isTerminal());
+      if (terminalChild) editNode = terminalChild;
+    }
+
+    const currentText = editNode.label;
     const inputText = currentText === '...' ? '' : currentText;
 
     // Create modal dialog
@@ -771,7 +897,7 @@ class CanvasManager {
     `;
 
     const label = document.createElement('div');
-    label.textContent = node.isTerminal() ? 'Edit word:' : 'Edit label:';
+    label.textContent = editNode.isTerminal() ? 'Edit word:' : 'Edit label:';
     label.style.marginBottom = '10px';
 
     const input = document.createElement('input');
@@ -813,8 +939,12 @@ class CanvasManager {
     const closeDialog = (save) => {
       document.body.removeChild(overlay);
       if (save) {
-        const finalText = input.value.trim() || (node.isTerminal() ? '...' : node.label);
-        this.tree.updateLabel(node, finalText);
+        const finalText = input.value.trim() || (editNode.isTerminal() ? '...' : editNode.label);
+        this.tree.updateLabel(editNode, finalText);
+        // For compound tiles, update the word text in the visual group
+        if (tile.isCompoundTile) {
+          this.updateCompoundTileWord(tile, node);
+        }
       }
     };
 
@@ -832,9 +962,11 @@ class CanvasManager {
   // === Tree Operations ===
 
   moveSubtree(node, deltaX, deltaY) {
+    const parentTile = this.nodeToCanvas.get(node.id);
     for (const child of node.children) {
       const childTile = this.nodeToCanvas.get(child.id);
-      if (childTile) {
+      // Skip if child shares the same tile (compound POS+terminal)
+      if (childTile && childTile !== parentTile) {
         childTile.set({
           left: childTile.left + deltaX,
           top: childTile.top + deltaY
@@ -1690,9 +1822,10 @@ class CanvasManager {
     const arrows = this.canvas.getObjects().filter(o => o.isMovementArrow);
     arrows.forEach(arrow => this.canvas.remove(arrow));
 
-    // Draw new lines
+    // Draw new lines (skip POS→terminal — handled inside compound tile)
     for (const node of this.tree.getAllNodes()) {
       for (const child of node.children) {
+        if (node.nodeType === NodeType.POS && child.isTerminal()) continue;
         this.drawConnectionLine(node, child);
       }
     }
@@ -1834,7 +1967,8 @@ class CanvasManager {
     // Step 1: Calculate leaf count for each subtree (for width allocation)
     const leafCounts = new Map();
     const calculateLeafCount = (node) => {
-      if (node.children.length === 0) {
+      // POS nodes are visual leaves (compound tiles)
+      if (node.nodeType === NodeType.POS || node.children.length === 0) {
         leafCounts.set(node.id, 1);
         return 1;
       }
@@ -1850,32 +1984,25 @@ class CanvasManager {
       calculateLeafCount(root);
     }
 
-    // Step 1b: Calculate max depth and count POS→terminal edges on the deepest path
-    // This gives us the structural depth to compute adaptive vertical spacing
+    // Step 1b: Calculate max depth (POS nodes are leaves — no POS→terminal level)
     let totalLeafCount = 0;
     for (const root of this.tree.roots) {
       totalLeafCount += leafCounts.get(root.id) || 1;
     }
 
-    // Walk tree to find max effective depth (in level units, counting POS→terminal as separate)
-    let maxNormalLevels = 0;
-    let maxPosTerminalLevels = 0;
-    const walkDepth = (node, normalLevels, posTermLevels) => {
-      if (node.children.length === 0) {
-        if (normalLevels > maxNormalLevels) maxNormalLevels = normalLevels;
-        if (posTermLevels > maxPosTerminalLevels) maxPosTerminalLevels = posTermLevels;
+    let maxDepthLevels = 0;
+    const walkDepth = (node, depth) => {
+      // POS is a visual leaf (compound tile) — stop here
+      if (node.nodeType === NodeType.POS || node.children.length === 0) {
+        if (depth > maxDepthLevels) maxDepthLevels = depth;
         return;
       }
       for (const child of node.children) {
-        if (node.nodeType === NodeType.POS && child.isTerminal()) {
-          walkDepth(child, normalLevels, posTermLevels + 1);
-        } else {
-          walkDepth(child, normalLevels + 1, posTermLevels);
-        }
+        walkDepth(child, depth + 1);
       }
     };
     for (const root of this.tree.roots) {
-      walkDepth(root, 0, 0);
+      walkDepth(root, 0);
     }
 
     // Step 1c: Compute adaptive layout values
@@ -1889,33 +2016,28 @@ class CanvasManager {
     );
 
     // Vertical: fit all levels within canvas height
-    // Total height = normalLevels * LEVEL_HEIGHT + posTermLevels * POS_TERMINAL_HEIGHT + TOP_MARGIN
-    // We scale both proportionally if they don't fit
-    const availableH = canvasH - this.TOP_MARGIN - 20; // 20px bottom padding
-    if (maxNormalLevels > 0 || maxPosTerminalLevels > 0) {
-      const idealH = maxNormalLevels * this.LEVEL_HEIGHT + maxPosTerminalLevels * this.POS_TERMINAL_HEIGHT;
-      if (idealH > availableH && idealH > 0) {
-        const scale = availableH / idealH;
-        this._activeLevelHeight = Math.max(this.MIN_LEVEL_HEIGHT, this.LEVEL_HEIGHT * scale);
-        this._activePosTerminalHeight = Math.max(this.MIN_POS_TERMINAL_HEIGHT, this.POS_TERMINAL_HEIGHT * scale);
+    const availableH = canvasH - this.TOP_MARGIN - 20;
+    if (maxDepthLevels > 0) {
+      const idealH = maxDepthLevels * this.LEVEL_HEIGHT;
+      if (idealH > availableH) {
+        this._activeLevelHeight = Math.max(this.MIN_LEVEL_HEIGHT, this.LEVEL_HEIGHT * (availableH / idealH));
       } else {
         this._activeLevelHeight = this.LEVEL_HEIGHT;
-        this._activePosTerminalHeight = this.POS_TERMINAL_HEIGHT;
       }
     } else {
       this._activeLevelHeight = this.LEVEL_HEIGHT;
-      this._activePosTerminalHeight = this.POS_TERMINAL_HEIGHT;
     }
+    // POS_TERMINAL_HEIGHT no longer needed for layout (compound tiles)
+    this._activePosTerminalHeight = this.POS_TERMINAL_HEIGHT;
 
-    // Step 2: Calculate cumulative Y offset for each node using adaptive values
+    // Step 2: Calculate cumulative Y offset (uniform LEVEL_HEIGHT, POS nodes are leaves)
     const yOffsets = new Map();
     const calculateYOffsets = (node, currentY) => {
       yOffsets.set(node.id, currentY);
+      // POS is a visual leaf — don't descend into terminal children
+      if (node.nodeType === NodeType.POS) return;
       for (const child of node.children) {
-        const gap = (node.nodeType === NodeType.POS && child.isTerminal())
-          ? this._activePosTerminalHeight
-          : this._activeLevelHeight;
-        calculateYOffsets(child, currentY + gap);
+        calculateYOffsets(child, currentY + this._activeLevelHeight);
       }
     };
 
@@ -1923,10 +2045,11 @@ class CanvasManager {
       calculateYOffsets(root, 0);
     }
 
-    // Also keep uniform depths for leaf ordering (unchanged logic)
+    // Also keep uniform depths for leaf ordering
     const depths = new Map();
     const calculateDepth = (node, depth) => {
       depths.set(node.id, depth);
+      if (node.nodeType === NodeType.POS) return; // don't descend
       for (const child of node.children) {
         calculateDepth(child, depth + 1);
       }
@@ -1945,8 +2068,13 @@ class CanvasManager {
     });
 
     // Step 3: Collect all leaves in left-to-right order
+    // POS nodes are visual leaves (compound tiles) — don't descend into their terminal children
     const leaves = [];
     const collectLeaves = (node) => {
+      if (node.nodeType === NodeType.POS) {
+        leaves.push(node); // compound tile — treat as leaf
+        return;
+      }
       if (node.children.length === 0) {
         leaves.push(node);
       } else {
@@ -2107,8 +2235,10 @@ class CanvasManager {
     this.canvas.clear();
     this.nodeToCanvas.clear();
 
-    // Create tiles for all nodes
+    // Create tiles for all nodes (compound tiles handle POS+terminal pairs)
     for (const node of this.tree.getAllNodes()) {
+      // Skip terminals that are children of POS — they're part of the compound tile
+      if (node.isTerminal() && node.parent && node.parent.nodeType === NodeType.POS) continue;
       this.createTileForNode(node);
     }
 
@@ -2116,46 +2246,84 @@ class CanvasManager {
     this.relayout(false);
   }
 
+  updateCompoundTileWord(tile, posNode) {
+    if (!tile || !tile.isCompoundTile) return;
+    const terminalChild = posNode.children.find(c => c.isTerminal());
+    if (!terminalChild) return;
+
+    // item(4) is the word text in compound tile [posRect, posText, line, wordRect, wordText]
+    const wordObj = tile.item(4);
+    const wordText = terminalChild.label;
+    const isEmpty = !wordText || wordText === '...';
+    wordObj.set({
+      text: wordText || '...',
+      fill: isEmpty ? '#999' : '#000'
+    });
+
+    // Resize word rect to fit
+    const textWidth = wordObj.calcTextWidth ? wordObj.calcTextWidth() : wordObj.width;
+    const wordWidth = Math.max(this.TERMINAL_WIDTH, textWidth + this.TERMINAL_PADDING);
+    tile.item(3).set({ width: wordWidth });
+
+    tile.addWithUpdate();
+    this.canvas.requestRenderAll();
+  }
+
   updateTileLabel(node) {
     const tile = this.nodeToCanvas.get(node.id);
-    if (tile) {
-      const textObj = tile.item(1);
-      const displayLabel = BracketParser.getDisplayLabel(node);
-      textObj.set({ text: displayLabel });
+    if (!tile) return;
 
-      // Update colors if needed
-      const colors = getNodeColors(node.label, node.nodeType);
-      tile.item(0).set({ fill: colors.bg, stroke: colors.border });
-      textObj.set({ fill: colors.text });
-
-      // Resize tile to fit new text
-      const textWidth = textObj.calcTextWidth ? textObj.calcTextWidth() : textObj.width;
-      let padding, minWidth;
-      if (node.isTerminal()) {
-        padding = this.TERMINAL_PADDING;
-        minWidth = this.TERMINAL_WIDTH;
-      } else if (node.nodeType === NodeType.POS) {
-        padding = this.POS_TILE_PADDING;
-        minWidth = this.POS_TILE_WIDTH;
-      } else if (node.nodeType === NodeType.PHRASE) {
-        padding = this.PHRASE_TILE_PADDING;
-        minWidth = this.PHRASE_TILE_WIDTH;
-      } else {
-        padding = 24;
-        minWidth = this.TILE_WIDTH;
+    // For compound tiles, update word text if the terminal child changed
+    if (tile.isCompoundTile) {
+      if (node.isTerminal() && node.parent && node.parent.nodeType === NodeType.POS) {
+        this.updateCompoundTileWord(tile, node.parent);
       }
-      tile.item(0).set({ width: Math.max(minWidth, textWidth + padding) });
-      tile.addWithUpdate();
-
-      // For terminal tiles, show/hide hint based on whether text is empty
-      if (tile.isTerminalTile && tile.item(2)) {
-        const isEmpty = !displayLabel || displayLabel === '...';
-        tile.item(2).set({ visible: isEmpty });
-        textObj.set({ top: isEmpty ? -4 : 0 });
+      // POS label change — update the POS text (item 1)
+      if (node.nodeType === NodeType.POS) {
+        const posText = tile.item(1);
+        posText.set({ text: BracketParser.getDisplayLabel(node) });
+        const posColors = getNodeColors(node.label, NodeType.POS);
+        tile.item(0).set({ fill: posColors.bg, stroke: posColors.border });
+        posText.set({ fill: posColors.text });
+        tile.addWithUpdate();
       }
-
       this.canvas.requestRenderAll();
+      return;
     }
+
+    // Standard tile update
+    const textObj = tile.item(1);
+    const displayLabel = BracketParser.getDisplayLabel(node);
+    textObj.set({ text: displayLabel });
+
+    const colors = getNodeColors(node.label, node.nodeType);
+    tile.item(0).set({ fill: colors.bg, stroke: colors.border });
+    textObj.set({ fill: colors.text });
+
+    // Resize tile to fit new text
+    const textWidth = textObj.calcTextWidth ? textObj.calcTextWidth() : textObj.width;
+    let padding, minWidth;
+    if (node.isTerminal()) {
+      padding = this.TERMINAL_PADDING;
+      minWidth = this.TERMINAL_WIDTH;
+    } else if (node.nodeType === NodeType.PHRASE) {
+      padding = this.PHRASE_TILE_PADDING;
+      minWidth = this.PHRASE_TILE_WIDTH;
+    } else {
+      padding = 24;
+      minWidth = this.TILE_WIDTH;
+    }
+    tile.item(0).set({ width: Math.max(minWidth, textWidth + padding) });
+    tile.addWithUpdate();
+
+    // For terminal tiles, show/hide hint based on whether text is empty
+    if (tile.isTerminalTile && tile.item(2)) {
+      const isEmpty = !displayLabel || displayLabel === '...';
+      tile.item(2).set({ visible: isEmpty });
+      textObj.set({ top: isEmpty ? -4 : 0 });
+    }
+
+    this.canvas.requestRenderAll();
   }
 
   removeTileForNode(node) {
@@ -2228,20 +2396,14 @@ class CanvasManager {
     this.syncSiblingPositions(node);
     node.reorderByPosition();
 
-    // For POS nodes, auto-create a terminal child
+    // For POS nodes, auto-create a terminal child (part of compound tile)
     let lowestY = y;
     if (type === 'pos') {
       const terminal = new TreeNode('...', NodeType.TERMINAL);
       this.tree.connect(node, terminal);
-      const terminalTile = this.createTileForNode(terminal);
-
-      // Position terminal directly below parent
-      const parentCenter = tile.getCenterPoint();
-      const terminalY = parentCenter.y + this._activePosTerminalHeight;
-      this.positionTileAtDropImmediate(terminalTile, parentCenter.x, terminalY);
-      this.animateTileDrop(terminalTile, terminalY);
-
-      lowestY = terminalY;
+      // Terminal is part of the compound tile — map it but don't create a separate tile
+      terminal.canvasObject = tile;
+      this.nodeToCanvas.set(terminal.id, tile);
     }
 
     this._suppressRelayout = false;
