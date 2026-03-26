@@ -28,16 +28,16 @@ class CanvasManager {
     this.TERMINAL_PADDING = 12; // total horizontal padding around text
 
     // Layout settings — maximum (preferred) values for editing
-    this.UNIT_WIDTH = 155;
-    this.LEVEL_HEIGHT = 110;
-    this.POS_TERMINAL_HEIGHT = 45;
-    this.TOP_MARGIN = 35;
+    this.UNIT_WIDTH = 100;
+    this.LEVEL_HEIGHT = 90;
+    this.POS_TERMINAL_HEIGHT = 38;
+    this.TOP_MARGIN = 30;
     this.ANIMATION_DURATION = 150;
 
     // Adaptive layout — minimum floors (drag/drop still works at these values)
-    this.MIN_UNIT_WIDTH = 75;       // must clear widest tile (~72px clause)
-    this.MIN_LEVEL_HEIGHT = 55;     // must clear MIN_VERTICAL_GAP + interaction space
-    this.MIN_POS_TERMINAL_HEIGHT = 28; // locked edges — legibility only
+    this.MIN_UNIT_WIDTH = 60;       // must clear widest tile (~42px phrase/POS) + gap
+    this.MIN_LEVEL_HEIGHT = 50;     // must clear MIN_VERTICAL_GAP + interaction space
+    this.MIN_POS_TERMINAL_HEIGHT = 26; // locked edges — legibility only
 
     // Active layout values (computed per relayout, start at max)
     this._activeUnitWidth = this.UNIT_WIDTH;
@@ -45,22 +45,22 @@ class CanvasManager {
     this._activePosTerminalHeight = this.POS_TERMINAL_HEIGHT;
 
     // Condensed layout for export only
-    this.EXPORT_UNIT_WIDTH = 105;
-    this.EXPORT_LEVEL_HEIGHT = 75;
-    this.EXPORT_POS_TERMINAL_HEIGHT = 35;
-    this.EXPORT_TOP_MARGIN = 25;
-    this.EXPORT_MIN_UNIT_WIDTH = 55;
-    this.EXPORT_MIN_LEVEL_HEIGHT = 40;
-    this.EXPORT_MIN_POS_TERMINAL_HEIGHT = 22;
+    this.EXPORT_UNIT_WIDTH = 80;
+    this.EXPORT_LEVEL_HEIGHT = 60;
+    this.EXPORT_POS_TERMINAL_HEIGHT = 28;
+    this.EXPORT_TOP_MARGIN = 20;
+    this.EXPORT_MIN_UNIT_WIDTH = 50;
+    this.EXPORT_MIN_LEVEL_HEIGHT = 35;
+    this.EXPORT_MIN_POS_TERMINAL_HEIGHT = 20;
 
     // Presentation mode (classroom projection)
-    this.PRESENT_UNIT_WIDTH = 115;
-    this.PRESENT_LEVEL_HEIGHT = 85;
-    this.PRESENT_POS_TERMINAL_HEIGHT = 40;
-    this.PRESENT_TOP_MARGIN = 30;
-    this.PRESENT_MIN_UNIT_WIDTH = 65;
-    this.PRESENT_MIN_LEVEL_HEIGHT = 50;
-    this.PRESENT_MIN_POS_TERMINAL_HEIGHT = 25;
+    this.PRESENT_UNIT_WIDTH = 90;
+    this.PRESENT_LEVEL_HEIGHT = 75;
+    this.PRESENT_POS_TERMINAL_HEIGHT = 32;
+    this.PRESENT_TOP_MARGIN = 25;
+    this.PRESENT_MIN_UNIT_WIDTH = 55;
+    this.PRESENT_MIN_LEVEL_HEIGHT = 45;
+    this.PRESENT_MIN_POS_TERMINAL_HEIGHT = 22;
     this.PRESENT_FONT_SIZE = 16;
     this.PRESENT_PHRASE_FONT_SIZE = 12;
     this.PRESENT_POS_FONT_SIZE = 12;
@@ -366,13 +366,10 @@ class CanvasManager {
       lockScalingY: true
     });
 
-    // Clip to rect bounds so nothing renders outside the tile
-    group.clipPath = new fabric.Rect({
-      width: tileWidth,
-      height: this.TERMINAL_HEIGHT,
-      originX: 'center',
-      originY: 'center'
-    });
+    // Force group dimensions to match the rect so centering math works
+    // (hint text can extend the group bounding box, skewing getCenterPoint)
+    group.set({ width: tileWidth, height: this.TERMINAL_HEIGHT });
+    group.setCoords();
 
     group.isTerminalTile = true;
 
@@ -2141,13 +2138,10 @@ class CanvasManager {
       this.tree.connect(node, terminal);
       const terminalTile = this.createTileForNode(terminal);
 
-      // Position terminal directly below parent using the rect center
-      // (getCenterPoint() can be skewed by child objects extending the group bounds)
-      const parentRect = tile.item(0);
-      const parentCenterX = tile.left + tile.width / 2;
-      const parentCenterY = tile.top + tile.height / 2;
-      const terminalY = parentCenterY + this._activePosTerminalHeight;
-      this.positionTileAtDropImmediate(terminalTile, parentCenterX, terminalY);
+      // Position terminal directly below parent
+      const parentCenter = tile.getCenterPoint();
+      const terminalY = parentCenter.y + this._activePosTerminalHeight;
+      this.positionTileAtDropImmediate(terminalTile, parentCenter.x, terminalY);
       this.animateTileDrop(terminalTile, terminalY);
 
       lowestY = terminalY;
