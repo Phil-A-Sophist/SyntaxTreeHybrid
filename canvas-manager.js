@@ -93,7 +93,7 @@ class CanvasManager {
     this.MIN_DRAG_FOR_DISCONNECT = 55;
 
     // Shift-zoom settings
-    this.SHIFT_ZOOM_LEVEL = 3;       // zoom multiplier when shift is held
+    this.SHIFT_ZOOM_LEVEL = 1.5;     // zoom multiplier when shift is held
     this._preShiftZoom = null;        // saved zoom state before shift-zoom
     this._preShiftVpt = null;         // saved viewport transform before shift-zoom
 
