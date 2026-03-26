@@ -8,35 +8,49 @@ class CanvasManager {
     this.canvas = new fabric.Canvas(canvasId);
     this.tree = tree;
 
-    // Tile dimensions
+    // Tile dimensions — clause/phrase tiles (unchanged)
     this.TILE_WIDTH = 72;
     this.TILE_HEIGHT = 32;
-    this.TERMINAL_WIDTH = 72;
-    this.TERMINAL_HEIGHT = 28;
+
+    // POS tiles — compact, fits ~4 letters
+    this.POS_TILE_WIDTH = 42;
+    this.POS_TILE_HEIGHT = 22;
+    this.POS_TILE_PADDING = 10; // total horizontal padding around text
+
+    // Terminal (word) tiles — dynamic width, compact height
+    this.TERMINAL_WIDTH = 36;
+    this.TERMINAL_HEIGHT = 22;
+    this.TERMINAL_PADDING = 12; // total horizontal padding around text
 
     // Layout settings (spacious for editing)
     this.UNIT_WIDTH = 155;
     this.LEVEL_HEIGHT = 110;
+    this.POS_TERMINAL_HEIGHT = 45; // reduced vertical gap: POS → word
     this.TOP_MARGIN = 35;
     this.ANIMATION_DURATION = 150;
 
     // Condensed layout for export only
     this.EXPORT_UNIT_WIDTH = 105;
     this.EXPORT_LEVEL_HEIGHT = 75;
+    this.EXPORT_POS_TERMINAL_HEIGHT = 35;
     this.EXPORT_TOP_MARGIN = 25;
 
     // Presentation mode (classroom projection)
     this.PRESENT_UNIT_WIDTH = 115;
     this.PRESENT_LEVEL_HEIGHT = 85;
+    this.PRESENT_POS_TERMINAL_HEIGHT = 40;
     this.PRESENT_TOP_MARGIN = 30;
     this.PRESENT_FONT_SIZE = 16;
+    this.PRESENT_POS_FONT_SIZE = 12;
     this.PRESENT_TERMINAL_FONT_SIZE = 17;
 
     // Editing mode defaults (saved for toggling back)
     this.EDIT_UNIT_WIDTH = this.UNIT_WIDTH;
     this.EDIT_LEVEL_HEIGHT = this.LEVEL_HEIGHT;
+    this.EDIT_POS_TERMINAL_HEIGHT = this.POS_TERMINAL_HEIGHT;
     this.EDIT_TOP_MARGIN = this.TOP_MARGIN;
     this.EDIT_FONT_SIZE = 12;
+    this.EDIT_POS_FONT_SIZE = 10;
     this.EDIT_TERMINAL_FONT_SIZE = 13;
 
     this.presentationMode = false;
@@ -203,7 +217,7 @@ class CanvasManager {
     if (node.isTerminal()) {
       tile = this.createTerminalTile(node.label, colors);
     } else {
-      tile = this.createStandardTile(node.label, colors);
+      tile = this.createStandardTile(node.label, colors, node.nodeType);
     }
 
     tile.treeNodeId = node.id;
@@ -216,8 +230,15 @@ class CanvasManager {
     return tile;
   }
 
-  createStandardTile(label, colors) {
-    const fontSize = this.presentationMode ? this.PRESENT_FONT_SIZE : this.EDIT_FONT_SIZE;
+  createStandardTile(label, colors, nodeType) {
+    const isPOS = nodeType === NodeType.POS;
+
+    let fontSize;
+    if (isPOS) {
+      fontSize = this.presentationMode ? this.PRESENT_POS_FONT_SIZE : this.EDIT_POS_FONT_SIZE;
+    } else {
+      fontSize = this.presentationMode ? this.PRESENT_FONT_SIZE : this.EDIT_FONT_SIZE;
+    }
 
     const text = new fabric.Text(label, {
       fontSize: fontSize,
@@ -226,21 +247,31 @@ class CanvasManager {
       textAlign: 'center',
       originX: 'center',
       originY: 'center',
-      fontFamily: 'system-ui, sans-serif'
+      fontFamily: isPOS ? "'Segoe UI Semibold', 'SF Pro Text', 'Helvetica Neue', sans-serif" : 'system-ui, sans-serif'
     });
 
     // Auto-size width to fit text
     const textWidth = text.calcTextWidth ? text.calcTextWidth() : text.width;
-    const tileWidth = Math.max(this.TILE_WIDTH, textWidth + 24);
+    let tileWidth, tileHeight, cornerRadius;
+
+    if (isPOS) {
+      tileWidth = Math.max(this.POS_TILE_WIDTH, textWidth + this.POS_TILE_PADDING);
+      tileHeight = this.POS_TILE_HEIGHT;
+      cornerRadius = 4;
+    } else {
+      tileWidth = Math.max(this.TILE_WIDTH, textWidth + 24);
+      tileHeight = this.TILE_HEIGHT;
+      cornerRadius = 6;
+    }
 
     const rect = new fabric.Rect({
       width: tileWidth,
-      height: this.TILE_HEIGHT,
+      height: tileHeight,
       fill: colors.bg,
-      rx: 6,
-      ry: 6,
+      rx: cornerRadius,
+      ry: cornerRadius,
       stroke: colors.border,
-      strokeWidth: 1.5,
+      strokeWidth: isPOS ? 1 : 1.5,
       originX: 'center',
       originY: 'center'
     });
@@ -264,20 +295,20 @@ class CanvasManager {
       textAlign: 'center',
       originX: 'center',
       originY: 'center',
-      top: isEmpty ? -6 : 0,
-      fontFamily: 'system-ui, sans-serif'
+      top: isEmpty ? -4 : 0,
+      fontFamily: "'Segoe UI', 'SF Pro Text', 'Helvetica Neue', sans-serif"
     });
 
-    // Auto-size width to fit text
+    // Dynamic width — fits the word with minimal padding
     const textWidth = label.calcTextWidth ? label.calcTextWidth() : label.width;
-    const tileWidth = Math.max(this.TERMINAL_WIDTH, textWidth + 20);
+    const tileWidth = Math.max(this.TERMINAL_WIDTH, textWidth + this.TERMINAL_PADDING);
 
     const rect = new fabric.Rect({
       width: tileWidth,
       height: this.TERMINAL_HEIGHT,
       fill: colors.bg,
-      rx: 5,
-      ry: 5,
+      rx: 3,
+      ry: 3,
       stroke: colors.border,
       strokeWidth: 1,
       originX: 'center',
@@ -285,13 +316,13 @@ class CanvasManager {
     });
 
     const hint = new fabric.Text('Ctrl+click to type', {
-      fontSize: 9,
+      fontSize: 8,
       fill: '#999',
       textAlign: 'center',
       originX: 'center',
       originY: 'center',
-      top: 4,
-      fontFamily: 'system-ui, sans-serif',
+      top: 3,
+      fontFamily: "'Segoe UI', sans-serif",
       visible: isEmpty
     });
 
@@ -708,6 +739,12 @@ class CanvasManager {
         // Skip if parent is a terminal (can't have children)
         if (parentNode.isTerminal()) continue;
 
+        // Structural constraints: no insertion involving POS→terminal edges
+        // POS can only have one terminal child — don't allow inserting between them
+        if (parentNode.nodeType === NodeType.POS && childNode.isTerminal()) continue;
+        // Don't let terminals or POS nodes be inserted between other nodes
+        if (node.isTerminal() || node.nodeType === NodeType.POS) continue;
+
         const parentTile = this.nodeToCanvas.get(parentNode.id);
         const childTile = this.nodeToCanvas.get(childNode.id);
 
@@ -778,6 +815,9 @@ class CanvasManager {
    * or null if not between any siblings.
    */
   findSiblingInsertionZone(node, tile) {
+    // Terminals and POS nodes don't participate in sibling insertion
+    if (node.isTerminal() || node.nodeType === NodeType.POS) return null;
+
     const nodeCenter = tile.getCenterPoint();
     let bestMatch = null;
     let bestHorizontalDistance = Infinity;
@@ -786,6 +826,8 @@ class CanvasManager {
       if (parentNode === node || parentNode.isTerminal()) continue;
       if (parentNode.children.length < 2) continue;
       if (node.isAncestorOf(parentNode)) continue;
+      // No sibling insertion into POS parents (they only get one terminal child)
+      if (parentNode.nodeType === NodeType.POS) continue;
 
       const parentTile = this.nodeToCanvas.get(parentNode.id);
       if (!parentTile) continue;
@@ -859,6 +901,23 @@ class CanvasManager {
 
       // Skip terminal nodes - they can't be parents
       if (node.isTerminal()) continue;
+
+      // Structural constraints:
+      // Terminal (word) can only connect to a POS parent
+      if (childNode.isTerminal() && node.nodeType !== NodeType.POS) continue;
+
+      // POS can only have one child (a terminal/word) — skip if POS already has a child
+      // (unless the child being dragged IS that existing child)
+      if (node.nodeType === NodeType.POS && node.children.length > 0 &&
+          !node.children.includes(childNode)) continue;
+
+      // Terminal can only connect to POS; non-terminal cannot connect to POS as child
+      // (POS's only child must be a terminal)
+      if (node.nodeType === NodeType.POS && !childNode.isTerminal()) continue;
+
+      // POS can only have a phrase (or clause) as parent — skip non-phrase/clause parents for POS children
+      if (childNode.nodeType === NodeType.POS &&
+          node.nodeType !== NodeType.PHRASE && node.nodeType !== NodeType.CLAUSE) continue;
 
       const tileCenter = tile.getCenterPoint();
 
@@ -1652,7 +1711,24 @@ class CanvasManager {
       calculateLeafCount(root);
     }
 
-    // Step 2: Calculate depth for each node
+    // Step 2: Calculate cumulative Y offset for each node
+    // Uses POS_TERMINAL_HEIGHT for POS→terminal edges, LEVEL_HEIGHT otherwise
+    const yOffsets = new Map();
+    const calculateYOffsets = (node, currentY) => {
+      yOffsets.set(node.id, currentY);
+      for (const child of node.children) {
+        const gap = (node.nodeType === NodeType.POS && child.isTerminal())
+          ? this.POS_TERMINAL_HEIGHT
+          : this.LEVEL_HEIGHT;
+        calculateYOffsets(child, currentY + gap);
+      }
+    };
+
+    for (const root of this.tree.roots) {
+      calculateYOffsets(root, 0);
+    }
+
+    // Also keep uniform depths for leaf ordering (unchanged logic)
     const depths = new Map();
     const calculateDepth = (node, depth) => {
       depths.set(node.id, depth);
@@ -1714,8 +1790,7 @@ class CanvasManager {
       const tile = this.nodeToCanvas.get(leaf.id);
       if (tile) {
         const centerX = startX + (i + 0.5) * this.UNIT_WIDTH;
-        const depth = depths.get(leaf.id);
-        const y = this.TOP_MARGIN + depth * this.LEVEL_HEIGHT;
+        const y = this.TOP_MARGIN + (yOffsets.get(leaf.id) || 0);
         const width = tile.item(0).width || this.TILE_WIDTH;
         targets.set(leaf.id, {
           left: centerX - width / 2,
@@ -1748,8 +1823,7 @@ class CanvasManager {
 
       // Center this node over its children
       const centerX = (minX + maxX) / 2;
-      const depth = depths.get(node.id);
-      const y = this.TOP_MARGIN + depth * this.LEVEL_HEIGHT;
+      const y = this.TOP_MARGIN + (yOffsets.get(node.id) || 0);
       const tile = this.nodeToCanvas.get(node.id);
       if (tile) {
         const width = tile.item(0).width || this.TILE_WIDTH;
@@ -1859,11 +1933,27 @@ class CanvasManager {
       tile.item(0).set({ fill: colors.bg, stroke: colors.border });
       textObj.set({ fill: colors.text });
 
+      // Resize tile to fit new text
+      const textWidth = textObj.calcTextWidth ? textObj.calcTextWidth() : textObj.width;
+      let padding, minWidth;
+      if (node.isTerminal()) {
+        padding = this.TERMINAL_PADDING;
+        minWidth = this.TERMINAL_WIDTH;
+      } else if (node.nodeType === NodeType.POS) {
+        padding = this.POS_TILE_PADDING;
+        minWidth = this.POS_TILE_WIDTH;
+      } else {
+        padding = 24;
+        minWidth = this.TILE_WIDTH;
+      }
+      tile.item(0).set({ width: Math.max(minWidth, textWidth + padding) });
+      tile.addWithUpdate();
+
       // For terminal tiles, show/hide hint based on whether text is empty
       if (tile.isTerminalTile && tile.item(2)) {
         const isEmpty = !displayLabel || displayLabel === '...';
         tile.item(2).set({ visible: isEmpty });
-        textObj.set({ top: isEmpty ? -5 : 0 });
+        textObj.set({ top: isEmpty ? -4 : 0 });
       }
 
       this.canvas.requestRenderAll();
@@ -1949,7 +2039,7 @@ class CanvasManager {
 
       // Position terminal directly below parent using parent's actual center
       const parentCenter = tile.getCenterPoint();
-      const terminalY = parentCenter.y + this.LEVEL_HEIGHT;
+      const terminalY = parentCenter.y + this.POS_TERMINAL_HEIGHT;
       this.positionTileAtDropImmediate(terminalTile, parentCenter.x, terminalY);
       this.animateTileDrop(terminalTile, terminalY);
 
@@ -2274,15 +2364,18 @@ class CanvasManager {
     if (this.presentationMode) {
       this.UNIT_WIDTH = this.PRESENT_UNIT_WIDTH;
       this.LEVEL_HEIGHT = this.PRESENT_LEVEL_HEIGHT;
+      this.POS_TERMINAL_HEIGHT = this.PRESENT_POS_TERMINAL_HEIGHT;
       this.TOP_MARGIN = this.PRESENT_TOP_MARGIN;
     } else {
       this.UNIT_WIDTH = this.EDIT_UNIT_WIDTH;
       this.LEVEL_HEIGHT = this.EDIT_LEVEL_HEIGHT;
+      this.POS_TERMINAL_HEIGHT = this.EDIT_POS_TERMINAL_HEIGHT;
       this.TOP_MARGIN = this.EDIT_TOP_MARGIN;
     }
 
     // Update font sizes on all existing tiles
     const targetFontSize = this.presentationMode ? this.PRESENT_FONT_SIZE : this.EDIT_FONT_SIZE;
+    const targetPOSFontSize = this.presentationMode ? this.PRESENT_POS_FONT_SIZE : this.EDIT_POS_FONT_SIZE;
     const targetTerminalFontSize = this.presentationMode ? this.PRESENT_TERMINAL_FONT_SIZE : this.EDIT_TERMINAL_FONT_SIZE;
 
     for (const [nodeId, tile] of this.nodeToCanvas) {
@@ -2292,14 +2385,25 @@ class CanvasManager {
       const textObj = tile.item(1);
       if (node.isTerminal()) {
         textObj.set({ fontSize: targetTerminalFontSize });
+      } else if (node.nodeType === NodeType.POS) {
+        textObj.set({ fontSize: targetPOSFontSize });
       } else {
         textObj.set({ fontSize: targetFontSize });
       }
 
       // Auto-size tile width to fit text
       const textWidth = textObj.calcTextWidth ? textObj.calcTextWidth() : textObj.width;
-      const padding = node.isTerminal() ? 20 : 24;
-      const minWidth = node.isTerminal() ? this.TERMINAL_WIDTH : this.TILE_WIDTH;
+      let padding, minWidth;
+      if (node.isTerminal()) {
+        padding = this.TERMINAL_PADDING;
+        minWidth = this.TERMINAL_WIDTH;
+      } else if (node.nodeType === NodeType.POS) {
+        padding = this.POS_TILE_PADDING;
+        minWidth = this.POS_TILE_WIDTH;
+      } else {
+        padding = 24;
+        minWidth = this.TILE_WIDTH;
+      }
       const newWidth = Math.max(minWidth, textWidth + padding);
       tile.item(0).set({ width: newWidth });
 
@@ -2363,11 +2467,13 @@ class CanvasManager {
     // Save editing layout constants
     const prevUnitWidth = this.UNIT_WIDTH;
     const prevLevelHeight = this.LEVEL_HEIGHT;
+    const prevPosTerminalHeight = this.POS_TERMINAL_HEIGHT;
     const prevTopMargin = this.TOP_MARGIN;
 
     // Switch to condensed export layout
     this.UNIT_WIDTH = this.EXPORT_UNIT_WIDTH;
     this.LEVEL_HEIGHT = this.EXPORT_LEVEL_HEIGHT;
+    this.POS_TERMINAL_HEIGHT = this.EXPORT_POS_TERMINAL_HEIGHT;
     this.TOP_MARGIN = this.EXPORT_TOP_MARGIN;
 
     // Apply condensed layout without animation
@@ -2412,6 +2518,7 @@ class CanvasManager {
     // Restore editing layout constants
     this.UNIT_WIDTH = prevUnitWidth;
     this.LEVEL_HEIGHT = prevLevelHeight;
+    this.POS_TERMINAL_HEIGHT = prevPosTerminalHeight;
     this.TOP_MARGIN = prevTopMargin;
 
     // Restore editing layout without animation
