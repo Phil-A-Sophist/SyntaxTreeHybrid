@@ -5,7 +5,11 @@
 
 class CanvasManager {
   constructor(canvasId, tree) {
-    this.canvas = new fabric.Canvas(canvasId);
+    this.canvas = new fabric.Canvas(canvasId, {
+      enableRetinaScaling: true,
+      // Force 2x resolution for sharp text at all zoom levels
+      devicePixelRatio: Math.max(2, window.devicePixelRatio || 1)
+    });
     this.tree = tree;
 
     // Tile dimensions — clause tiles (top-level, largest)
@@ -2634,7 +2638,7 @@ class CanvasManager {
     };
   }
 
-  async exportPNG(multiplier = 4) {
+  async exportPNG(multiplier = 8) {
     // Save current state
     const prevBg = this.canvas.backgroundColor;
     const prevVpt = this.canvas.viewportTransform.slice();
