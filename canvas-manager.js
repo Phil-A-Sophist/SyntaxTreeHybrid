@@ -27,24 +27,40 @@ class CanvasManager {
     this.TERMINAL_HEIGHT = 22;
     this.TERMINAL_PADDING = 12; // total horizontal padding around text
 
-    // Layout settings (spacious for editing)
+    // Layout settings — maximum (preferred) values for editing
     this.UNIT_WIDTH = 155;
     this.LEVEL_HEIGHT = 110;
-    this.POS_TERMINAL_HEIGHT = 45; // reduced vertical gap: POS → word
+    this.POS_TERMINAL_HEIGHT = 45;
     this.TOP_MARGIN = 35;
     this.ANIMATION_DURATION = 150;
+
+    // Adaptive layout — minimum floors (drag/drop still works at these values)
+    this.MIN_UNIT_WIDTH = 75;       // must clear widest tile (~72px clause)
+    this.MIN_LEVEL_HEIGHT = 55;     // must clear MIN_VERTICAL_GAP + interaction space
+    this.MIN_POS_TERMINAL_HEIGHT = 28; // locked edges — legibility only
+
+    // Active layout values (computed per relayout, start at max)
+    this._activeUnitWidth = this.UNIT_WIDTH;
+    this._activeLevelHeight = this.LEVEL_HEIGHT;
+    this._activePosTerminalHeight = this.POS_TERMINAL_HEIGHT;
 
     // Condensed layout for export only
     this.EXPORT_UNIT_WIDTH = 105;
     this.EXPORT_LEVEL_HEIGHT = 75;
     this.EXPORT_POS_TERMINAL_HEIGHT = 35;
     this.EXPORT_TOP_MARGIN = 25;
+    this.EXPORT_MIN_UNIT_WIDTH = 55;
+    this.EXPORT_MIN_LEVEL_HEIGHT = 40;
+    this.EXPORT_MIN_POS_TERMINAL_HEIGHT = 22;
 
     // Presentation mode (classroom projection)
     this.PRESENT_UNIT_WIDTH = 115;
     this.PRESENT_LEVEL_HEIGHT = 85;
     this.PRESENT_POS_TERMINAL_HEIGHT = 40;
     this.PRESENT_TOP_MARGIN = 30;
+    this.PRESENT_MIN_UNIT_WIDTH = 65;
+    this.PRESENT_MIN_LEVEL_HEIGHT = 50;
+    this.PRESENT_MIN_POS_TERMINAL_HEIGHT = 25;
     this.PRESENT_FONT_SIZE = 16;
     this.PRESENT_PHRASE_FONT_SIZE = 12;
     this.PRESENT_POS_FONT_SIZE = 12;
@@ -55,6 +71,9 @@ class CanvasManager {
     this.EDIT_LEVEL_HEIGHT = this.LEVEL_HEIGHT;
     this.EDIT_POS_TERMINAL_HEIGHT = this.POS_TERMINAL_HEIGHT;
     this.EDIT_TOP_MARGIN = this.TOP_MARGIN;
+    this.EDIT_MIN_UNIT_WIDTH = this.MIN_UNIT_WIDTH;
+    this.EDIT_MIN_LEVEL_HEIGHT = this.MIN_LEVEL_HEIGHT;
+    this.EDIT_MIN_POS_TERMINAL_HEIGHT = this.MIN_POS_TERMINAL_HEIGHT;
     this.EDIT_FONT_SIZE = 12;
     this.EDIT_PHRASE_FONT_SIZE = 10;
     this.EDIT_POS_FONT_SIZE = 10;
@@ -328,7 +347,9 @@ class CanvasManager {
       originY: 'center'
     });
 
-    const hint = new fabric.Text('Ctrl+click to type', {
+    // Hint fits inside tile — use rect width to clip text
+    const hintText = tileWidth >= 80 ? 'click to edit' : '...';
+    const hint = new fabric.Text(hintText, {
       fontSize: 8,
       fill: '#999',
       textAlign: 'center',
@@ -343,6 +364,14 @@ class CanvasManager {
       hasControls: false,
       lockScalingX: true,
       lockScalingY: true
+    });
+
+    // Clip to rect bounds so nothing renders outside the tile
+    group.clipPath = new fabric.Rect({
+      width: tileWidth,
+      height: this.TERMINAL_HEIGHT,
+      originX: 'center',
+      originY: 'center'
     });
 
     group.isTerminalTile = true;
@@ -873,7 +902,7 @@ class CanvasManager {
         // Node must be at roughly the same vertical level as the siblings (within 1.5 levels)
         const siblingAvgY = (leftCenter.y + rightCenter.y) / 2;
         const verticalDiff = Math.abs(nodeCenter.y - siblingAvgY);
-        if (verticalDiff > this.LEVEL_HEIGHT * 1.5) continue;
+        if (verticalDiff > this._activeLevelHeight * 1.5) continue;
 
         // Calculate how centered the node is between the siblings
         const midX = (leftCenter.x + rightCenter.x) / 2;
@@ -952,7 +981,7 @@ class CanvasManager {
         score *= 0.6; // 40% bonus for existing parent
       }
       // Also prefer nodes that are exactly one level above (direct parent distance)
-      const levelDiff = Math.round(dy / this.LEVEL_HEIGHT);
+      const levelDiff = Math.round(dy / this._activeLevelHeight);
       if (levelDiff === 1) {
         score *= 0.85; // 15% bonus for one-level-above candidates
       }
@@ -1727,15 +1756,71 @@ class CanvasManager {
       calculateLeafCount(root);
     }
 
-    // Step 2: Calculate cumulative Y offset for each node
-    // Uses POS_TERMINAL_HEIGHT for POS→terminal edges, LEVEL_HEIGHT otherwise
+    // Step 1b: Calculate max depth and count POS→terminal edges on the deepest path
+    // This gives us the structural depth to compute adaptive vertical spacing
+    let totalLeafCount = 0;
+    for (const root of this.tree.roots) {
+      totalLeafCount += leafCounts.get(root.id) || 1;
+    }
+
+    // Walk tree to find max effective depth (in level units, counting POS→terminal as separate)
+    let maxNormalLevels = 0;
+    let maxPosTerminalLevels = 0;
+    const walkDepth = (node, normalLevels, posTermLevels) => {
+      if (node.children.length === 0) {
+        if (normalLevels > maxNormalLevels) maxNormalLevels = normalLevels;
+        if (posTermLevels > maxPosTerminalLevels) maxPosTerminalLevels = posTermLevels;
+        return;
+      }
+      for (const child of node.children) {
+        if (node.nodeType === NodeType.POS && child.isTerminal()) {
+          walkDepth(child, normalLevels, posTermLevels + 1);
+        } else {
+          walkDepth(child, normalLevels + 1, posTermLevels);
+        }
+      }
+    };
+    for (const root of this.tree.roots) {
+      walkDepth(root, 0, 0);
+    }
+
+    // Step 1c: Compute adaptive layout values
+    const canvasW = this.canvas.getWidth();
+    const canvasH = this.canvas.getHeight();
+
+    // Horizontal: fit all leaves across canvas width
+    this._activeUnitWidth = Math.min(
+      this.UNIT_WIDTH,
+      Math.max(this.MIN_UNIT_WIDTH, canvasW / (totalLeafCount + 1))
+    );
+
+    // Vertical: fit all levels within canvas height
+    // Total height = normalLevels * LEVEL_HEIGHT + posTermLevels * POS_TERMINAL_HEIGHT + TOP_MARGIN
+    // We scale both proportionally if they don't fit
+    const availableH = canvasH - this.TOP_MARGIN - 20; // 20px bottom padding
+    if (maxNormalLevels > 0 || maxPosTerminalLevels > 0) {
+      const idealH = maxNormalLevels * this.LEVEL_HEIGHT + maxPosTerminalLevels * this.POS_TERMINAL_HEIGHT;
+      if (idealH > availableH && idealH > 0) {
+        const scale = availableH / idealH;
+        this._activeLevelHeight = Math.max(this.MIN_LEVEL_HEIGHT, this.LEVEL_HEIGHT * scale);
+        this._activePosTerminalHeight = Math.max(this.MIN_POS_TERMINAL_HEIGHT, this.POS_TERMINAL_HEIGHT * scale);
+      } else {
+        this._activeLevelHeight = this.LEVEL_HEIGHT;
+        this._activePosTerminalHeight = this.POS_TERMINAL_HEIGHT;
+      }
+    } else {
+      this._activeLevelHeight = this.LEVEL_HEIGHT;
+      this._activePosTerminalHeight = this.POS_TERMINAL_HEIGHT;
+    }
+
+    // Step 2: Calculate cumulative Y offset for each node using adaptive values
     const yOffsets = new Map();
     const calculateYOffsets = (node, currentY) => {
       yOffsets.set(node.id, currentY);
       for (const child of node.children) {
         const gap = (node.nodeType === NodeType.POS && child.isTerminal())
-          ? this.POS_TERMINAL_HEIGHT
-          : this.LEVEL_HEIGHT;
+          ? this._activePosTerminalHeight
+          : this._activeLevelHeight;
         calculateYOffsets(child, currentY + gap);
       }
     };
@@ -1782,8 +1867,8 @@ class CanvasManager {
     }
 
     // Step 4: Determine starting X position (anchor to first root)
-    const totalLeaves = leaves.length;
-    const totalPx = totalLeaves * this.UNIT_WIDTH;
+    const adaptiveLeafCount = leaves.length;
+    const totalPx = adaptiveLeafCount * this._activeUnitWidth;
 
     let startX;
     const firstRoot = this.tree.roots[0];
@@ -1791,11 +1876,11 @@ class CanvasManager {
     if (firstRootTile) {
       const currentCenterX = firstRootTile.getCenterPoint().x;
       const firstRootLeafCount = leafCounts.get(firstRoot.id) || 1;
-      const firstRootCenterOffset = (firstRootLeafCount * this.UNIT_WIDTH) / 2;
+      const firstRootCenterOffset = (firstRootLeafCount * this._activeUnitWidth) / 2;
       startX = currentCenterX - firstRootCenterOffset;
       startX = Math.max(60, startX);
     } else {
-      startX = Math.max(60, (this.canvas.getWidth() - totalPx) / 2);
+      startX = Math.max(60, (canvasW - totalPx) / 2);
     }
 
     // Step 5: Position leaves with fixed spacing
@@ -1805,7 +1890,7 @@ class CanvasManager {
       const leaf = leaves[i];
       const tile = this.nodeToCanvas.get(leaf.id);
       if (tile) {
-        const centerX = startX + (i + 0.5) * this.UNIT_WIDTH;
+        const centerX = startX + (i + 0.5) * this._activeUnitWidth;
         const y = this.TOP_MARGIN + (yOffsets.get(leaf.id) || 0);
         const width = tile.item(0).width || this.TILE_WIDTH;
         targets.set(leaf.id, {
@@ -2056,10 +2141,13 @@ class CanvasManager {
       this.tree.connect(node, terminal);
       const terminalTile = this.createTileForNode(terminal);
 
-      // Position terminal directly below parent using parent's actual center
-      const parentCenter = tile.getCenterPoint();
-      const terminalY = parentCenter.y + this.POS_TERMINAL_HEIGHT;
-      this.positionTileAtDropImmediate(terminalTile, parentCenter.x, terminalY);
+      // Position terminal directly below parent using the rect center
+      // (getCenterPoint() can be skewed by child objects extending the group bounds)
+      const parentRect = tile.item(0);
+      const parentCenterX = tile.left + tile.width / 2;
+      const parentCenterY = tile.top + tile.height / 2;
+      const terminalY = parentCenterY + this._activePosTerminalHeight;
+      this.positionTileAtDropImmediate(terminalTile, parentCenterX, terminalY);
       this.animateTileDrop(terminalTile, terminalY);
 
       lowestY = terminalY;
@@ -2385,11 +2473,17 @@ class CanvasManager {
       this.LEVEL_HEIGHT = this.PRESENT_LEVEL_HEIGHT;
       this.POS_TERMINAL_HEIGHT = this.PRESENT_POS_TERMINAL_HEIGHT;
       this.TOP_MARGIN = this.PRESENT_TOP_MARGIN;
+      this.MIN_UNIT_WIDTH = this.PRESENT_MIN_UNIT_WIDTH;
+      this.MIN_LEVEL_HEIGHT = this.PRESENT_MIN_LEVEL_HEIGHT;
+      this.MIN_POS_TERMINAL_HEIGHT = this.PRESENT_MIN_POS_TERMINAL_HEIGHT;
     } else {
       this.UNIT_WIDTH = this.EDIT_UNIT_WIDTH;
       this.LEVEL_HEIGHT = this.EDIT_LEVEL_HEIGHT;
       this.POS_TERMINAL_HEIGHT = this.EDIT_POS_TERMINAL_HEIGHT;
       this.TOP_MARGIN = this.EDIT_TOP_MARGIN;
+      this.MIN_UNIT_WIDTH = this.EDIT_MIN_UNIT_WIDTH;
+      this.MIN_LEVEL_HEIGHT = this.EDIT_MIN_LEVEL_HEIGHT;
+      this.MIN_POS_TERMINAL_HEIGHT = this.EDIT_MIN_POS_TERMINAL_HEIGHT;
     }
 
     // Update font sizes on all existing tiles
@@ -2494,12 +2588,18 @@ class CanvasManager {
     const prevLevelHeight = this.LEVEL_HEIGHT;
     const prevPosTerminalHeight = this.POS_TERMINAL_HEIGHT;
     const prevTopMargin = this.TOP_MARGIN;
+    const prevMinUnitWidth = this.MIN_UNIT_WIDTH;
+    const prevMinLevelHeight = this.MIN_LEVEL_HEIGHT;
+    const prevMinPosTerminalHeight = this.MIN_POS_TERMINAL_HEIGHT;
 
     // Switch to condensed export layout
     this.UNIT_WIDTH = this.EXPORT_UNIT_WIDTH;
     this.LEVEL_HEIGHT = this.EXPORT_LEVEL_HEIGHT;
     this.POS_TERMINAL_HEIGHT = this.EXPORT_POS_TERMINAL_HEIGHT;
     this.TOP_MARGIN = this.EXPORT_TOP_MARGIN;
+    this.MIN_UNIT_WIDTH = this.EXPORT_MIN_UNIT_WIDTH;
+    this.MIN_LEVEL_HEIGHT = this.EXPORT_MIN_LEVEL_HEIGHT;
+    this.MIN_POS_TERMINAL_HEIGHT = this.EXPORT_MIN_POS_TERMINAL_HEIGHT;
 
     // Apply condensed layout without animation
     this._suppressRelayout = false;
@@ -2545,6 +2645,9 @@ class CanvasManager {
     this.LEVEL_HEIGHT = prevLevelHeight;
     this.POS_TERMINAL_HEIGHT = prevPosTerminalHeight;
     this.TOP_MARGIN = prevTopMargin;
+    this.MIN_UNIT_WIDTH = prevMinUnitWidth;
+    this.MIN_LEVEL_HEIGHT = prevMinLevelHeight;
+    this.MIN_POS_TERMINAL_HEIGHT = prevMinPosTerminalHeight;
 
     // Restore editing layout without animation
     this.relayout(false);
