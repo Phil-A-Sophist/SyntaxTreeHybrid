@@ -96,20 +96,11 @@ class CanvasManager {
     this.potentialInsertion = null; // { parent, child } when inserting between
     this.insertionPreviewLines = []; // Two preview lines for insertion
 
-    // Magnifying lens settings
-    this.LENS_RADIUS = 300;          // px — radius of circular lens (600px diameter)
-    this.LENS_MAGNIFICATION = 0.8;   // <1 shows wider area than actual size
-    this.LENS_OFFSET_Y = 310;        // px — lens positioned below cursor
-    this.lensCanvas = null;           // created in setupCanvas()
-    this.lensCtx = null;
-
     // State
     this.selectedTile = null;
     this.connectionPreviewLine = null;
     this.hoveredTile = null;
     this.isDraggingCanvas = false;
-    this._isDraggingTile = false;
-    this._draggedTile = null;        // reference to tile being dragged
 
     // Map of node ID to canvas object
     this.nodeToCanvas = new Map();
@@ -124,33 +115,6 @@ class CanvasManager {
   setupCanvas() {
     this.resizeCanvas();
     window.addEventListener('resize', () => this.resizeCanvas());
-    this.createLens();
-  }
-
-  createLens() {
-    // Append to canvas-container (created by Fabric.js) so the lens
-    // renders above the upper-canvas interaction layer
-    const container = this.canvas.wrapperEl || document.querySelector('.canvas-container');
-    if (!container) return;
-
-    const size = this.LENS_RADIUS * 2;
-    const lens = document.createElement('canvas');
-    lens.width = size;
-    lens.height = size;
-    lens.style.cssText = `
-      position: absolute;
-      width: ${size}px;
-      height: ${size}px;
-      border-radius: 50%;
-      border: 2px solid #333;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.3);
-      pointer-events: none;
-      z-index: 100;
-      display: none;
-    `;
-    container.appendChild(lens);
-    this.lensCanvas = lens;
-    this.lensCtx = lens.getContext('2d');
   }
 
   resizeCanvas() {
@@ -207,20 +171,6 @@ class CanvasManager {
     });
 
     this.canvas.on('mouse:move', (opt) => {
-      // Update magnifying lens during tile drag
-      if (this._isDraggingTile && opt.e) {
-        // Center magnified area on the dragged tile, not the cursor
-        let focusX = opt.e.clientX, focusY = opt.e.clientY;
-        if (this._draggedTile) {
-          const tileCenter = this._draggedTile.getCenterPoint();
-          const containerRect = this.canvas.lowerCanvasEl.getBoundingClientRect();
-          const vpt = this.canvas.viewportTransform;
-          focusX = tileCenter.x * vpt[0] + vpt[4] + containerRect.left;
-          focusY = tileCenter.y * vpt[3] + vpt[5] + containerRect.top;
-        }
-        this.updateLens(opt.e.clientX, opt.e.clientY, focusX, focusY);
-      }
-
       if (this.isDraggingCanvas) {
         const e = opt.e;
         const vpt = this.canvas.viewportTransform;
@@ -455,9 +405,6 @@ class CanvasManager {
 
       // Suppress relayout during drag to prevent sibling positions from shifting
       this._suppressRelayout = true;
-      this._isDraggingTile = true;
-      this._draggedTile = tile;
-      this.showLens();
 
       // Add lift effect
       tile.set({
@@ -476,11 +423,6 @@ class CanvasManager {
     });
 
     tile.on('mouseup', (e) => {
-      // Hide magnifying lens
-      this._isDraggingTile = false;
-      this._draggedTile = null;
-      this.hideLens();
-
       // Remove lift effect
       if (this.selectedTile !== tile) {
         tile.set({ shadow: null });
@@ -1179,99 +1121,6 @@ class CanvasManager {
       this._dropHighlightedTile2 = null;
     }
     this.canvas.requestRenderAll();
-  }
-
-  // === Magnifying Lens ===
-
-  showLens() {
-    if (this.lensCanvas) {
-      this.lensCanvas.style.display = 'block';
-    }
-  }
-
-  hideLens() {
-    if (this.lensCanvas) {
-      this.lensCanvas.style.display = 'none';
-    }
-  }
-
-  /**
-   * Update the magnifying lens position and content.
-   * @param {number} screenX - Cursor screen X (for lens placement)
-   * @param {number} screenY - Cursor screen Y (for lens placement)
-   * @param {number} [focusScreenX] - Center of magnified area (defaults to screenX)
-   * @param {number} [focusScreenY] - Center of magnified area (defaults to screenY)
-   */
-  updateLens(screenX, screenY, focusScreenX, focusScreenY) {
-    if (!this.lensCanvas || !this.lensCtx) return;
-
-    const container = this.lensCanvas.parentElement;
-    if (!container) return;
-    const containerRect = container.getBoundingClientRect();
-
-    // Use focus point for magnification center (defaults to cursor)
-    const magCenterX = focusScreenX !== undefined ? focusScreenX : screenX;
-    const magCenterY = focusScreenY !== undefined ? focusScreenY : screenY;
-
-    // Position lens below the cursor
-    const lensSize = this.LENS_RADIUS * 2;
-    let lensLeft = screenX - containerRect.left - this.LENS_RADIUS;
-    let lensTop = screenY - containerRect.top + this.LENS_OFFSET_Y - this.LENS_RADIUS;
-
-    // Clamp within container bounds
-    lensLeft = Math.max(0, Math.min(containerRect.width - lensSize, lensLeft));
-    lensTop = Math.max(0, Math.min(containerRect.height - lensSize, lensTop));
-
-    this.lensCanvas.style.left = lensLeft + 'px';
-    this.lensCanvas.style.top = lensTop + 'px';
-
-    // Force render so canvases have the latest frame
-    this.canvas.renderAll();
-
-    // Draw magnified content — composite both lower (static) and upper (dragged object) canvases
-    const lowerCanvas = this.canvas.lowerCanvasEl;
-    const upperCanvas = this.canvas.upperCanvasEl;
-    if (!lowerCanvas) return;
-
-    const ctx = this.lensCtx;
-    const mag = this.LENS_MAGNIFICATION;
-
-    // Source region: area around the focus point, accounting for pixel ratio
-    const pixelRatio = lowerCanvas.width / lowerCanvas.offsetWidth;
-    const focusOnCanvasX = (magCenterX - containerRect.left) * pixelRatio;
-    const focusOnCanvasY = (magCenterY - containerRect.top) * pixelRatio;
-    const sourceRadius = (this.LENS_RADIUS / mag) * pixelRatio;
-
-    const sx = focusOnCanvasX - sourceRadius;
-    const sy = focusOnCanvasY - sourceRadius;
-    const sw = sourceRadius * 2;
-    const sh = sourceRadius * 2;
-
-    // Clear and clip to circle
-    ctx.clearRect(0, 0, lensSize, lensSize);
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(this.LENS_RADIUS, this.LENS_RADIUS, this.LENS_RADIUS - 1, 0, Math.PI * 2);
-    ctx.clip();
-
-    // Layer 1: lower canvas (all non-active objects, connection lines)
-    ctx.drawImage(lowerCanvas, sx, sy, sw, sh, 0, 0, lensSize, lensSize);
-    // Layer 2: upper canvas (active/dragged object + selection handles)
-    if (upperCanvas) {
-      ctx.drawImage(upperCanvas, sx, sy, sw, sh, 0, 0, lensSize, lensSize);
-    }
-
-    // Crosshair at center (subtle)
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(this.LENS_RADIUS - 10, this.LENS_RADIUS);
-    ctx.lineTo(this.LENS_RADIUS + 10, this.LENS_RADIUS);
-    ctx.moveTo(this.LENS_RADIUS, this.LENS_RADIUS - 10);
-    ctx.lineTo(this.LENS_RADIUS, this.LENS_RADIUS + 10);
-    ctx.stroke();
-
-    ctx.restore();
   }
 
   /**
