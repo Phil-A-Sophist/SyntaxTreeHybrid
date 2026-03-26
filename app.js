@@ -60,59 +60,60 @@ function setupPaletteDragDrop(canvasManager) {
     });
   });
 
-  // Canvas drop handling
+  // Canvas drop handling — use wrapper div so events survive zoom changes
+  const canvasWrapper = document.getElementById('canvas-wrapper');
   const canvasElement = canvasManager.canvas.upperCanvasEl;
 
-  canvasElement.addEventListener('dragover', function(e) {
+  // Helper to restore zoom state
+  const restoreZoom = () => {
+    if (canvasManager._preShiftZoom !== null) {
+      canvasManager.canvas.setViewportTransform(canvasManager._preShiftVpt);
+      canvasManager._preShiftZoom = null;
+      canvasManager._preShiftVpt = null;
+      canvasManager.canvas.requestRenderAll();
+    }
+  };
+
+  canvasWrapper.addEventListener('dragover', function(e) {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'copy';
-    this.classList.add('drag-over');
+    canvasElement.classList.add('drag-over');
 
     // Show preview lines for potential connection at current drag position
     const pointer = canvasManager.canvas.getPointer(e);
     canvasManager.showDropPreview(pointer.x, pointer.y);
 
     // Shift-zoom during palette drag (keydown doesn't fire during HTML5 drag)
+    const canvasRect = canvasElement.getBoundingClientRect();
+    const offsetX = e.clientX - canvasRect.left;
+    const offsetY = e.clientY - canvasRect.top;
+
     if (e.shiftKey && canvasManager._preShiftZoom === null) {
-      canvasManager._lastPointer = { x: e.offsetX, y: e.offsetY };
-      // Trigger zoom activation directly
+      canvasManager._lastPointer = { x: offsetX, y: offsetY };
       canvasManager._preShiftZoom = canvasManager.canvas.getZoom();
       canvasManager._preShiftVpt = canvasManager.canvas.viewportTransform.slice();
       const targetZoom = canvasManager._preShiftZoom * canvasManager.SHIFT_ZOOM_LEVEL;
-      canvasManager.canvas.zoomToPoint({ x: e.offsetX, y: e.offsetY }, targetZoom);
+      canvasManager.canvas.zoomToPoint({ x: offsetX, y: offsetY }, targetZoom);
       canvasManager.canvas.requestRenderAll();
     } else if (!e.shiftKey && canvasManager._preShiftZoom !== null) {
-      // Shift released during drag — restore zoom
-      canvasManager.canvas.setViewportTransform(canvasManager._preShiftVpt);
-      canvasManager._preShiftZoom = null;
-      canvasManager._preShiftVpt = null;
-      canvasManager.canvas.requestRenderAll();
+      restoreZoom();
     }
   });
 
-  canvasElement.addEventListener('dragleave', function() {
-    this.classList.remove('drag-over');
+  canvasWrapper.addEventListener('dragleave', function(e) {
+    // Only trigger on leaving the wrapper, not internal child boundaries
+    if (e.relatedTarget && this.contains(e.relatedTarget)) return;
+    canvasElement.classList.remove('drag-over');
     canvasManager.hideDropPreview();
-    // Restore zoom if shift was held during drag
-    if (canvasManager._preShiftZoom !== null) {
-      canvasManager.canvas.setViewportTransform(canvasManager._preShiftVpt);
-      canvasManager._preShiftZoom = null;
-      canvasManager._preShiftVpt = null;
-      canvasManager.canvas.requestRenderAll();
-    }
+    restoreZoom();
   });
 
-  canvasElement.addEventListener('drop', function(e) {
+  canvasWrapper.addEventListener('drop', function(e) {
     e.preventDefault();
-    this.classList.remove('drag-over');
+    canvasElement.classList.remove('drag-over');
     canvasManager.hideDropPreview();
     // Restore zoom before processing drop so coordinates are correct
-    if (canvasManager._preShiftZoom !== null) {
-      canvasManager.canvas.setViewportTransform(canvasManager._preShiftVpt);
-      canvasManager._preShiftZoom = null;
-      canvasManager._preShiftVpt = null;
-      canvasManager.canvas.requestRenderAll();
-    }
+    restoreZoom();
 
     const data = e.dataTransfer.getData('text/plain');
     if (!data) return;
