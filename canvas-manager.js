@@ -97,9 +97,9 @@ class CanvasManager {
     this.insertionPreviewLines = []; // Two preview lines for insertion
 
     // Magnifying lens settings
-    this.LENS_RADIUS = 150;          // px — radius of circular lens
-    this.LENS_MAGNIFICATION = 1.4;   // zoom factor (lower = wider area visible)
-    this.LENS_OFFSET_Y = 160;        // px — lens positioned below cursor
+    this.LENS_RADIUS = 300;          // px — radius of circular lens (600px diameter)
+    this.LENS_MAGNIFICATION = 0.8;   // <1 shows wider area than actual size
+    this.LENS_OFFSET_Y = 310;        // px — lens positioned below cursor
     this.lensCanvas = null;           // created in setupCanvas()
     this.lensCtx = null;
 
@@ -1225,18 +1225,19 @@ class CanvasManager {
     this.lensCanvas.style.left = lensLeft + 'px';
     this.lensCanvas.style.top = lensTop + 'px';
 
-    // Force render so lowerCanvasEl has the latest frame
+    // Force render so canvases have the latest frame
     this.canvas.renderAll();
 
-    // Draw magnified content from the Fabric.js lower canvas
-    const sourceCanvas = this.canvas.lowerCanvasEl;
-    if (!sourceCanvas) return;
+    // Draw magnified content — composite both lower (static) and upper (dragged object) canvases
+    const lowerCanvas = this.canvas.lowerCanvasEl;
+    const upperCanvas = this.canvas.upperCanvasEl;
+    if (!lowerCanvas) return;
 
     const ctx = this.lensCtx;
     const mag = this.LENS_MAGNIFICATION;
 
     // Source region: area around the focus point, accounting for pixel ratio
-    const pixelRatio = sourceCanvas.width / sourceCanvas.offsetWidth;
+    const pixelRatio = lowerCanvas.width / lowerCanvas.offsetWidth;
     const focusOnCanvasX = (magCenterX - containerRect.left) * pixelRatio;
     const focusOnCanvasY = (magCenterY - containerRect.top) * pixelRatio;
     const sourceRadius = (this.LENS_RADIUS / mag) * pixelRatio;
@@ -1253,8 +1254,12 @@ class CanvasManager {
     ctx.arc(this.LENS_RADIUS, this.LENS_RADIUS, this.LENS_RADIUS - 1, 0, Math.PI * 2);
     ctx.clip();
 
-    // Draw magnified region
-    ctx.drawImage(sourceCanvas, sx, sy, sw, sh, 0, 0, lensSize, lensSize);
+    // Layer 1: lower canvas (all non-active objects, connection lines)
+    ctx.drawImage(lowerCanvas, sx, sy, sw, sh, 0, 0, lensSize, lensSize);
+    // Layer 2: upper canvas (active/dragged object + selection handles)
+    if (upperCanvas) {
+      ctx.drawImage(upperCanvas, sx, sy, sw, sh, 0, 0, lensSize, lensSize);
+    }
 
     // Crosshair at center (subtle)
     ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
