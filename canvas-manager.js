@@ -81,12 +81,17 @@ class CanvasManager {
 
     this.presentationMode = false;
 
-    // Auto-connection settings
-    this.CONNECTION_THRESHOLD = 250; // pixels - max distance to auto-connect
-    this.DISCONNECT_THRESHOLD = 380; // pixels - distance to auto-disconnect (must be > CONNECTION_THRESHOLD for hysteresis)
-    this.MIN_VERTICAL_GAP = 25; // parent must be at least this many pixels above child
-    this.HORIZONTAL_WEIGHT = 1.5; // penalize horizontal distance more than vertical
-    this.MIN_DRAG_FOR_DISCONNECT = 55; // minimum total drag distance before disconnect is allowed
+    // Auto-connection settings (base values — adjusted by zoom at runtime)
+    this.CONNECTION_THRESHOLD = 250;
+    this.DISCONNECT_THRESHOLD = 380;
+    this.MIN_VERTICAL_GAP = 25;
+    this.HORIZONTAL_WEIGHT = 1.5;
+    this.MIN_DRAG_FOR_DISCONNECT = 55;
+
+    // Shift-zoom settings
+    this.SHIFT_ZOOM_LEVEL = 3;       // zoom multiplier when shift is held
+    this._preShiftZoom = null;        // saved zoom state before shift-zoom
+    this._preShiftVpt = null;         // saved viewport transform before shift-zoom
 
     // Preview line for potential connection
     this.potentialConnectionLine = null;
@@ -110,11 +115,68 @@ class CanvasManager {
 
     this.setupCanvas();
     this.setupEventHandlers();
+    this.setupShiftZoom();
+  }
+
+  // Scale a threshold inversely with zoom so interaction feels the same at any zoom level
+  zoomAdjusted(baseValue) {
+    return baseValue / this.canvas.getZoom();
   }
 
   setupCanvas() {
     this.resizeCanvas();
     window.addEventListener('resize', () => this.resizeCanvas());
+  }
+
+  // Shift-hold zoom: 3x zoom centered on cursor, restore on release
+  setupShiftZoom() {
+    const onKeyDown = (e) => {
+      if (e.key === 'Shift' && !e.repeat && this._preShiftZoom === null) {
+        // Save current zoom state
+        this._preShiftZoom = this.canvas.getZoom();
+        this._preShiftVpt = this.canvas.viewportTransform.slice();
+
+        // Get cursor position (use last known mouse position or canvas center)
+        const pointer = this._lastPointer || {
+          x: this.canvas.getWidth() / 2,
+          y: this.canvas.getHeight() / 2
+        };
+
+        // Zoom to SHIFT_ZOOM_LEVEL centered on cursor
+        const targetZoom = this._preShiftZoom * this.SHIFT_ZOOM_LEVEL;
+        this.canvas.zoomToPoint(pointer, targetZoom);
+        this.canvas.requestRenderAll();
+      }
+    };
+
+    const onKeyUp = (e) => {
+      if (e.key === 'Shift' && this._preShiftZoom !== null) {
+        // Restore previous zoom state
+        this.canvas.setViewportTransform(this._preShiftVpt);
+        this._preShiftZoom = null;
+        this._preShiftVpt = null;
+        this.canvas.requestRenderAll();
+      }
+    };
+
+    // Track mouse position for zoom centering
+    this.canvas.on('mouse:move', (opt) => {
+      if (opt.e) {
+        this._lastPointer = { x: opt.e.offsetX, y: opt.e.offsetY };
+      }
+    });
+
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('keyup', onKeyUp);
+    // Also restore if window loses focus while shift is held
+    window.addEventListener('blur', () => {
+      if (this._preShiftZoom !== null) {
+        this.canvas.setViewportTransform(this._preShiftVpt);
+        this._preShiftZoom = null;
+        this._preShiftVpt = null;
+        this.canvas.requestRenderAll();
+      }
+    });
   }
 
   resizeCanvas() {
@@ -439,10 +501,10 @@ class CanvasManager {
         const totalDragDx = tile.left - dragStartPosition.x;
         const totalDragDy = tile.top - dragStartPosition.y;
         const totalDragDistance = Math.sqrt(totalDragDx * totalDragDx + totalDragDy * totalDragDy);
-        const shiftHeld = e.e && e.e.shiftKey;
+        const altHeld = e.e && e.e.altKey;
 
         // Finalize auto-connection based on final position
-        this.finalizeAutoConnection(node, tile, totalDragDistance, shiftHeld);
+        this.finalizeAutoConnection(node, tile, totalDragDistance, altHeld);
 
         // Sync all sibling positions from canvas tiles before reordering
         this.syncSiblingPositions(node);
@@ -805,10 +867,10 @@ class CanvasManager {
         // Check if the dragged node's y position is between parent and child
         const minY = Math.min(parentCenter.y, childCenter.y);
         const maxY = Math.max(parentCenter.y, childCenter.y);
-        const isVerticallyBetween = nodeCenter.y > minY + this.MIN_VERTICAL_GAP &&
-                                    nodeCenter.y < maxY - this.MIN_VERTICAL_GAP;
+        const isVerticallyBetween = nodeCenter.y > minY + this.zoomAdjusted(this.MIN_VERTICAL_GAP) &&
+                                    nodeCenter.y < maxY - this.zoomAdjusted(this.MIN_VERTICAL_GAP);
 
-        if (distance !== null && distance < this.LINE_INSERTION_THRESHOLD &&
+        if (distance !== null && distance < this.zoomAdjusted(this.LINE_INSERTION_THRESHOLD) &&
             distance < bestDistance && isVerticallyBetween) {
           bestDistance = distance;
           bestMatch = { parent: parentNode, child: childNode, distance };
@@ -876,7 +938,7 @@ class CanvasManager {
       const parentCenter = parentTile.getCenterPoint();
 
       // Node must be below the parent
-      if (nodeCenter.y <= parentCenter.y + this.MIN_VERTICAL_GAP) continue;
+      if (nodeCenter.y <= parentCenter.y + this.zoomAdjusted(this.MIN_VERTICAL_GAP)) continue;
 
       // Check each pair of adjacent siblings
       for (let i = 0; i < parentNode.children.length - 1; i++) {
@@ -964,7 +1026,7 @@ class CanvasManager {
       const tileCenter = tile.getCenterPoint();
 
       // Parent must be above child (smaller y = higher on screen)
-      if (tileCenter.y >= childCenter.y - this.MIN_VERTICAL_GAP) continue;
+      if (tileCenter.y >= childCenter.y - this.zoomAdjusted(this.MIN_VERTICAL_GAP)) continue;
 
       // Calculate weighted distance (penalize horizontal more)
       const dx = Math.abs(tileCenter.x - childCenter.x);
@@ -987,7 +1049,7 @@ class CanvasManager {
       const distance = Math.sqrt(dx * dx + dy * dy);
 
       // Check if within threshold and better score than current best
-      if (distance < this.CONNECTION_THRESHOLD && score < bestScore) {
+      if (distance < this.zoomAdjusted(this.CONNECTION_THRESHOLD) && score < bestScore) {
         bestCandidate = node;
         bestScore = score;
         bestTile = tile;
@@ -1141,7 +1203,7 @@ class CanvasManager {
       const tileCenter = tile.getCenterPoint();
 
       // Parent must be above drop point (smaller y = higher on screen)
-      if (tileCenter.y >= y - this.MIN_VERTICAL_GAP) continue;
+      if (tileCenter.y >= y - this.zoomAdjusted(this.MIN_VERTICAL_GAP)) continue;
 
       // Calculate weighted distance (penalize horizontal more)
       const dx = Math.abs(tileCenter.x - x);
@@ -1150,7 +1212,7 @@ class CanvasManager {
       const score = (dx * this.HORIZONTAL_WEIGHT) + dy;
       const distance = Math.sqrt(dx * dx + dy * dy);
 
-      if (distance < this.CONNECTION_THRESHOLD && score < bestScore) {
+      if (distance < this.zoomAdjusted(this.CONNECTION_THRESHOLD) && score < bestScore) {
         bestCandidate = node;
         bestScore = score;
         bestTile = tile;
@@ -1189,10 +1251,10 @@ class CanvasManager {
         // Check if the point's y position is between parent and child
         const minY = Math.min(parentCenter.y, childCenter.y);
         const maxY = Math.max(parentCenter.y, childCenter.y);
-        const isVerticallyBetween = y > minY + this.MIN_VERTICAL_GAP &&
-                                    y < maxY - this.MIN_VERTICAL_GAP;
+        const isVerticallyBetween = y > minY + this.zoomAdjusted(this.MIN_VERTICAL_GAP) &&
+                                    y < maxY - this.zoomAdjusted(this.MIN_VERTICAL_GAP);
 
-        if (distance !== null && distance < this.LINE_INSERTION_THRESHOLD &&
+        if (distance !== null && distance < this.zoomAdjusted(this.LINE_INSERTION_THRESHOLD) &&
             distance < bestDistance && isVerticallyBetween) {
           bestDistance = distance;
           bestMatch = { parent: parentNode, child: childNode, distance };
@@ -1469,9 +1531,9 @@ class CanvasManager {
    * @param {TreeNode} node - The node being dragged
    * @param {fabric.Object} tile - The canvas tile
    * @param {number} totalDragDistance - Total distance dragged from start (0 for drops)
-   * @param {boolean} shiftHeld - Whether shift key was held during drag
+   * @param {boolean} altHeld - Whether alt key was held during drag (force disconnect)
    */
-  finalizeAutoConnection(node, tile, totalDragDistance = Infinity, shiftHeld = false) {
+  finalizeAutoConnection(node, tile, totalDragDistance = Infinity, altHeld = false) {
     // Clean up all previews
     this.hidePotentialConnection();
     this.hideInsertionPreview();
@@ -1485,8 +1547,8 @@ class CanvasManager {
     }
 
     // Small drags (< MIN_DRAG_FOR_DISCONNECT) never change connections at all
-    // unless shift is held (explicit disconnect intent)
-    const tooSmallForChange = totalDragDistance < this.MIN_DRAG_FOR_DISCONNECT && !shiftHeld;
+    // unless alt is held (explicit disconnect intent)
+    const tooSmallForChange = totalDragDistance < this.zoomAdjusted(this.MIN_DRAG_FOR_DISCONNECT) && !altHeld;
     if (tooSmallForChange && node.parent) {
       // Small adjustment of a connected node — keep existing connection, skip relayout logic
       return;
@@ -1545,9 +1607,9 @@ class CanvasManager {
       }
     } else {
       // No suitable parent - check if we should disconnect
-      // Disconnect requires BOTH: (1) far from parent AND (2) intentional drag (large move or shift held)
+      // Disconnect requires BOTH: (1) far from parent AND (2) intentional drag (large move or alt held)
       if (node.parent) {
-        const canDisconnect = shiftHeld || totalDragDistance >= this.MIN_DRAG_FOR_DISCONNECT;
+        const canDisconnect = altHeld || totalDragDistance >= this.zoomAdjusted(this.MIN_DRAG_FOR_DISCONNECT);
         if (canDisconnect) {
           const parentTile = this.nodeToCanvas.get(node.parent.id);
           if (parentTile) {
@@ -1558,7 +1620,7 @@ class CanvasManager {
             const distance = Math.sqrt(dx * dx + dy * dy);
 
             // Only disconnect if moved far enough away from parent
-            if (distance > this.DISCONNECT_THRESHOLD) {
+            if (distance > this.zoomAdjusted(this.DISCONNECT_THRESHOLD)) {
               this.tree.disconnect(node);
             }
           }
