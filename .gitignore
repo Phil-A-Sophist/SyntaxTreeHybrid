@@ -1,8 +1,14 @@
+# Machine-specific
+_local/
+memorybot-local/logs/archive/
+
 node_modules/
 test-results/
 playwright-report/
 
 .claude/settings.local.json
+.sync_manifest.json
+memorybot-local/tracker.json
 *.bak
 
 # Python bytecode
