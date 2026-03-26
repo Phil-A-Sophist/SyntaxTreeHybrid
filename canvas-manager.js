@@ -8,14 +8,19 @@ class CanvasManager {
     this.canvas = new fabric.Canvas(canvasId);
     this.tree = tree;
 
-    // Tile dimensions — clause/phrase tiles (unchanged)
+    // Tile dimensions — clause tiles (top-level, largest)
     this.TILE_WIDTH = 72;
     this.TILE_HEIGHT = 32;
 
-    // POS tiles — compact, fits ~4 letters
+    // Phrase tiles — compact, fits ~4 letters (NP, VP, ADJP, ADVP, PP)
+    this.PHRASE_TILE_WIDTH = 42;
+    this.PHRASE_TILE_HEIGHT = 22;
+    this.PHRASE_TILE_PADDING = 10;
+
+    // POS tiles — compact, same size as phrases
     this.POS_TILE_WIDTH = 42;
     this.POS_TILE_HEIGHT = 22;
-    this.POS_TILE_PADDING = 10; // total horizontal padding around text
+    this.POS_TILE_PADDING = 10;
 
     // Terminal (word) tiles — dynamic width, compact height
     this.TERMINAL_WIDTH = 36;
@@ -41,6 +46,7 @@ class CanvasManager {
     this.PRESENT_POS_TERMINAL_HEIGHT = 40;
     this.PRESENT_TOP_MARGIN = 30;
     this.PRESENT_FONT_SIZE = 16;
+    this.PRESENT_PHRASE_FONT_SIZE = 12;
     this.PRESENT_POS_FONT_SIZE = 12;
     this.PRESENT_TERMINAL_FONT_SIZE = 17;
 
@@ -50,6 +56,7 @@ class CanvasManager {
     this.EDIT_POS_TERMINAL_HEIGHT = this.POS_TERMINAL_HEIGHT;
     this.EDIT_TOP_MARGIN = this.TOP_MARGIN;
     this.EDIT_FONT_SIZE = 12;
+    this.EDIT_PHRASE_FONT_SIZE = 10;
     this.EDIT_POS_FONT_SIZE = 10;
     this.EDIT_TERMINAL_FONT_SIZE = 13;
 
@@ -231,11 +238,13 @@ class CanvasManager {
   }
 
   createStandardTile(label, colors, nodeType) {
-    const isPOS = nodeType === NodeType.POS;
+    const isCompact = nodeType === NodeType.POS || nodeType === NodeType.PHRASE;
 
     let fontSize;
-    if (isPOS) {
+    if (nodeType === NodeType.POS) {
       fontSize = this.presentationMode ? this.PRESENT_POS_FONT_SIZE : this.EDIT_POS_FONT_SIZE;
+    } else if (nodeType === NodeType.PHRASE) {
+      fontSize = this.presentationMode ? this.PRESENT_PHRASE_FONT_SIZE : this.EDIT_PHRASE_FONT_SIZE;
     } else {
       fontSize = this.presentationMode ? this.PRESENT_FONT_SIZE : this.EDIT_FONT_SIZE;
     }
@@ -247,16 +256,20 @@ class CanvasManager {
       textAlign: 'center',
       originX: 'center',
       originY: 'center',
-      fontFamily: isPOS ? "'Segoe UI Semibold', 'SF Pro Text', 'Helvetica Neue', sans-serif" : 'system-ui, sans-serif'
+      fontFamily: isCompact ? "'Segoe UI Semibold', 'SF Pro Text', 'Helvetica Neue', sans-serif" : 'system-ui, sans-serif'
     });
 
     // Auto-size width to fit text
     const textWidth = text.calcTextWidth ? text.calcTextWidth() : text.width;
     let tileWidth, tileHeight, cornerRadius;
 
-    if (isPOS) {
+    if (nodeType === NodeType.POS) {
       tileWidth = Math.max(this.POS_TILE_WIDTH, textWidth + this.POS_TILE_PADDING);
       tileHeight = this.POS_TILE_HEIGHT;
+      cornerRadius = 4;
+    } else if (nodeType === NodeType.PHRASE) {
+      tileWidth = Math.max(this.PHRASE_TILE_WIDTH, textWidth + this.PHRASE_TILE_PADDING);
+      tileHeight = this.PHRASE_TILE_HEIGHT;
       cornerRadius = 4;
     } else {
       tileWidth = Math.max(this.TILE_WIDTH, textWidth + 24);
@@ -271,7 +284,7 @@ class CanvasManager {
       rx: cornerRadius,
       ry: cornerRadius,
       stroke: colors.border,
-      strokeWidth: isPOS ? 1 : 1.5,
+      strokeWidth: isCompact ? 1 : 1.5,
       originX: 'center',
       originY: 'center'
     });
@@ -1945,6 +1958,9 @@ class CanvasManager {
       } else if (node.nodeType === NodeType.POS) {
         padding = this.POS_TILE_PADDING;
         minWidth = this.POS_TILE_WIDTH;
+      } else if (node.nodeType === NodeType.PHRASE) {
+        padding = this.PHRASE_TILE_PADDING;
+        minWidth = this.PHRASE_TILE_WIDTH;
       } else {
         padding = 24;
         minWidth = this.TILE_WIDTH;
@@ -2378,6 +2394,7 @@ class CanvasManager {
 
     // Update font sizes on all existing tiles
     const targetFontSize = this.presentationMode ? this.PRESENT_FONT_SIZE : this.EDIT_FONT_SIZE;
+    const targetPhraseFontSize = this.presentationMode ? this.PRESENT_PHRASE_FONT_SIZE : this.EDIT_PHRASE_FONT_SIZE;
     const targetPOSFontSize = this.presentationMode ? this.PRESENT_POS_FONT_SIZE : this.EDIT_POS_FONT_SIZE;
     const targetTerminalFontSize = this.presentationMode ? this.PRESENT_TERMINAL_FONT_SIZE : this.EDIT_TERMINAL_FONT_SIZE;
 
@@ -2390,6 +2407,8 @@ class CanvasManager {
         textObj.set({ fontSize: targetTerminalFontSize });
       } else if (node.nodeType === NodeType.POS) {
         textObj.set({ fontSize: targetPOSFontSize });
+      } else if (node.nodeType === NodeType.PHRASE) {
+        textObj.set({ fontSize: targetPhraseFontSize });
       } else {
         textObj.set({ fontSize: targetFontSize });
       }
@@ -2403,6 +2422,9 @@ class CanvasManager {
       } else if (node.nodeType === NodeType.POS) {
         padding = this.POS_TILE_PADDING;
         minWidth = this.POS_TILE_WIDTH;
+      } else if (node.nodeType === NodeType.PHRASE) {
+        padding = this.PHRASE_TILE_PADDING;
+        minWidth = this.PHRASE_TILE_WIDTH;
       } else {
         padding = 24;
         minWidth = this.TILE_WIDTH;
