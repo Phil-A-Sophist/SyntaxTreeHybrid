@@ -97,9 +97,9 @@ class CanvasManager {
     this.insertionPreviewLines = []; // Two preview lines for insertion
 
     // Magnifying lens settings
-    this.LENS_RADIUS = 80;           // px — radius of circular lens
-    this.LENS_MAGNIFICATION = 1.8;   // zoom factor inside lens
-    this.LENS_OFFSET_Y = 90;         // px — lens positioned below cursor
+    this.LENS_RADIUS = 150;          // px — radius of circular lens
+    this.LENS_MAGNIFICATION = 1.4;   // zoom factor (lower = wider area visible)
+    this.LENS_OFFSET_Y = 160;        // px — lens positioned below cursor
     this.lensCanvas = null;           // created in setupCanvas()
     this.lensCtx = null;
 
@@ -109,6 +109,7 @@ class CanvasManager {
     this.hoveredTile = null;
     this.isDraggingCanvas = false;
     this._isDraggingTile = false;
+    this._draggedTile = null;        // reference to tile being dragged
 
     // Map of node ID to canvas object
     this.nodeToCanvas = new Map();
@@ -208,7 +209,16 @@ class CanvasManager {
     this.canvas.on('mouse:move', (opt) => {
       // Update magnifying lens during tile drag
       if (this._isDraggingTile && opt.e) {
-        this.updateLens(opt.e.clientX, opt.e.clientY);
+        // Center magnified area on the dragged tile, not the cursor
+        let focusX = opt.e.clientX, focusY = opt.e.clientY;
+        if (this._draggedTile) {
+          const tileCenter = this._draggedTile.getCenterPoint();
+          const containerRect = this.canvas.lowerCanvasEl.getBoundingClientRect();
+          const vpt = this.canvas.viewportTransform;
+          focusX = tileCenter.x * vpt[0] + vpt[4] + containerRect.left;
+          focusY = tileCenter.y * vpt[3] + vpt[5] + containerRect.top;
+        }
+        this.updateLens(opt.e.clientX, opt.e.clientY, focusX, focusY);
       }
 
       if (this.isDraggingCanvas) {
@@ -446,6 +456,7 @@ class CanvasManager {
       // Suppress relayout during drag to prevent sibling positions from shifting
       this._suppressRelayout = true;
       this._isDraggingTile = true;
+      this._draggedTile = tile;
       this.showLens();
 
       // Add lift effect
@@ -467,6 +478,7 @@ class CanvasManager {
     tile.on('mouseup', (e) => {
       // Hide magnifying lens
       this._isDraggingTile = false;
+      this._draggedTile = null;
       this.hideLens();
 
       // Remove lift effect
@@ -1183,12 +1195,23 @@ class CanvasManager {
     }
   }
 
-  updateLens(screenX, screenY) {
+  /**
+   * Update the magnifying lens position and content.
+   * @param {number} screenX - Cursor screen X (for lens placement)
+   * @param {number} screenY - Cursor screen Y (for lens placement)
+   * @param {number} [focusScreenX] - Center of magnified area (defaults to screenX)
+   * @param {number} [focusScreenY] - Center of magnified area (defaults to screenY)
+   */
+  updateLens(screenX, screenY, focusScreenX, focusScreenY) {
     if (!this.lensCanvas || !this.lensCtx) return;
 
     const container = this.lensCanvas.parentElement;
     if (!container) return;
     const containerRect = container.getBoundingClientRect();
+
+    // Use focus point for magnification center (defaults to cursor)
+    const magCenterX = focusScreenX !== undefined ? focusScreenX : screenX;
+    const magCenterY = focusScreenY !== undefined ? focusScreenY : screenY;
 
     // Position lens below the cursor
     const lensSize = this.LENS_RADIUS * 2;
@@ -1212,14 +1235,14 @@ class CanvasManager {
     const ctx = this.lensCtx;
     const mag = this.LENS_MAGNIFICATION;
 
-    // Source region: area around cursor on the raw canvas, accounting for pixel ratio
+    // Source region: area around the focus point, accounting for pixel ratio
     const pixelRatio = sourceCanvas.width / sourceCanvas.offsetWidth;
-    const cursorOnCanvasX = (screenX - containerRect.left) * pixelRatio;
-    const cursorOnCanvasY = (screenY - containerRect.top) * pixelRatio;
+    const focusOnCanvasX = (magCenterX - containerRect.left) * pixelRatio;
+    const focusOnCanvasY = (magCenterY - containerRect.top) * pixelRatio;
     const sourceRadius = (this.LENS_RADIUS / mag) * pixelRatio;
 
-    const sx = cursorOnCanvasX - sourceRadius;
-    const sy = cursorOnCanvasY - sourceRadius;
+    const sx = focusOnCanvasX - sourceRadius;
+    const sy = focusOnCanvasY - sourceRadius;
     const sw = sourceRadius * 2;
     const sh = sourceRadius * 2;
 
@@ -1234,13 +1257,13 @@ class CanvasManager {
     ctx.drawImage(sourceCanvas, sx, sy, sw, sh, 0, 0, lensSize, lensSize);
 
     // Crosshair at center (subtle)
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.15)';
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(this.LENS_RADIUS - 8, this.LENS_RADIUS);
-    ctx.lineTo(this.LENS_RADIUS + 8, this.LENS_RADIUS);
-    ctx.moveTo(this.LENS_RADIUS, this.LENS_RADIUS - 8);
-    ctx.lineTo(this.LENS_RADIUS, this.LENS_RADIUS + 8);
+    ctx.moveTo(this.LENS_RADIUS - 10, this.LENS_RADIUS);
+    ctx.lineTo(this.LENS_RADIUS + 10, this.LENS_RADIUS);
+    ctx.moveTo(this.LENS_RADIUS, this.LENS_RADIUS - 10);
+    ctx.lineTo(this.LENS_RADIUS, this.LENS_RADIUS + 10);
     ctx.stroke();
 
     ctx.restore();
