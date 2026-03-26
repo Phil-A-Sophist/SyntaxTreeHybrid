@@ -71,17 +71,48 @@ function setupPaletteDragDrop(canvasManager) {
     // Show preview lines for potential connection at current drag position
     const pointer = canvasManager.canvas.getPointer(e);
     canvasManager.showDropPreview(pointer.x, pointer.y);
+
+    // Shift-zoom during palette drag (keydown doesn't fire during HTML5 drag)
+    if (e.shiftKey && canvasManager._preShiftZoom === null) {
+      canvasManager._lastPointer = { x: e.offsetX, y: e.offsetY };
+      // Trigger zoom activation directly
+      canvasManager._preShiftZoom = canvasManager.canvas.getZoom();
+      canvasManager._preShiftVpt = canvasManager.canvas.viewportTransform.slice();
+      const targetZoom = canvasManager._preShiftZoom * canvasManager.SHIFT_ZOOM_LEVEL;
+      canvasManager.canvas.zoomToPoint({ x: e.offsetX, y: e.offsetY }, targetZoom);
+      canvasManager.canvas.requestRenderAll();
+    } else if (!e.shiftKey && canvasManager._preShiftZoom !== null) {
+      // Shift released during drag — restore zoom
+      canvasManager.canvas.setViewportTransform(canvasManager._preShiftVpt);
+      canvasManager._preShiftZoom = null;
+      canvasManager._preShiftVpt = null;
+      canvasManager.canvas.requestRenderAll();
+    }
   });
 
   canvasElement.addEventListener('dragleave', function() {
     this.classList.remove('drag-over');
     canvasManager.hideDropPreview();
+    // Restore zoom if shift was held during drag
+    if (canvasManager._preShiftZoom !== null) {
+      canvasManager.canvas.setViewportTransform(canvasManager._preShiftVpt);
+      canvasManager._preShiftZoom = null;
+      canvasManager._preShiftVpt = null;
+      canvasManager.canvas.requestRenderAll();
+    }
   });
 
   canvasElement.addEventListener('drop', function(e) {
     e.preventDefault();
     this.classList.remove('drag-over');
     canvasManager.hideDropPreview();
+    // Restore zoom before processing drop so coordinates are correct
+    if (canvasManager._preShiftZoom !== null) {
+      canvasManager.canvas.setViewportTransform(canvasManager._preShiftVpt);
+      canvasManager._preShiftZoom = null;
+      canvasManager._preShiftVpt = null;
+      canvasManager.canvas.requestRenderAll();
+    }
 
     const data = e.dataTransfer.getData('text/plain');
     if (!data) return;
