@@ -28,6 +28,9 @@ document.addEventListener('DOMContentLoaded', function() {
   // === Zoom Controls ===
   setupZoomControls(canvasManager);
 
+  // === Presentation Mode Toggle ===
+  setupPresentationToggle(canvasManager);
+
   // === Export Buttons ===
   setupExportButtons(canvasManager);
 
@@ -214,6 +217,21 @@ function setupZoomControls(canvasManager) {
     setTimeout(() => {
       canvasManager.resizeCanvas();
     }, 350);
+  });
+}
+
+/**
+ * Setup presentation mode toggle
+ */
+function setupPresentationToggle(canvasManager) {
+  const btn = document.getElementById('presentation-toggle');
+  if (!btn) return;
+
+  btn.addEventListener('click', () => {
+    const isPresenting = canvasManager.togglePresentationMode();
+    btn.textContent = isPresenting ? 'Edit' : 'Present';
+    btn.style.background = isPresenting ? '#333' : 'white';
+    btn.style.color = isPresenting ? 'white' : '#333';
   });
 }
 

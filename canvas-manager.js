@@ -25,11 +25,28 @@ class CanvasManager {
     this.EXPORT_LEVEL_HEIGHT = 75;
     this.EXPORT_TOP_MARGIN = 25;
 
+    // Presentation mode (classroom projection)
+    this.PRESENT_UNIT_WIDTH = 115;
+    this.PRESENT_LEVEL_HEIGHT = 85;
+    this.PRESENT_TOP_MARGIN = 30;
+    this.PRESENT_FONT_SIZE = 16;
+    this.PRESENT_TERMINAL_FONT_SIZE = 17;
+
+    // Editing mode defaults (saved for toggling back)
+    this.EDIT_UNIT_WIDTH = this.UNIT_WIDTH;
+    this.EDIT_LEVEL_HEIGHT = this.LEVEL_HEIGHT;
+    this.EDIT_TOP_MARGIN = this.TOP_MARGIN;
+    this.EDIT_FONT_SIZE = 12;
+    this.EDIT_TERMINAL_FONT_SIZE = 13;
+
+    this.presentationMode = false;
+
     // Auto-connection settings
-    this.CONNECTION_THRESHOLD = 200; // pixels - max distance to auto-connect
-    this.DISCONNECT_THRESHOLD = 320; // pixels - distance to auto-disconnect (larger for hysteresis)
+    this.CONNECTION_THRESHOLD = 250; // pixels - max distance to auto-connect
+    this.DISCONNECT_THRESHOLD = 380; // pixels - distance to auto-disconnect (must be > CONNECTION_THRESHOLD for hysteresis)
     this.MIN_VERTICAL_GAP = 25; // parent must be at least this many pixels above child
     this.HORIZONTAL_WEIGHT = 1.5; // penalize horizontal distance more than vertical
+    this.MIN_DRAG_FOR_DISCONNECT = 55; // minimum total drag distance before disconnect is allowed
 
     // Preview line for potential connection
     this.potentialConnectionLine = null;
@@ -200,8 +217,24 @@ class CanvasManager {
   }
 
   createStandardTile(label, colors) {
+    const fontSize = this.presentationMode ? this.PRESENT_FONT_SIZE : this.EDIT_FONT_SIZE;
+
+    const text = new fabric.Text(label, {
+      fontSize: fontSize,
+      fontWeight: 'bold',
+      fill: colors.text,
+      textAlign: 'center',
+      originX: 'center',
+      originY: 'center',
+      fontFamily: 'system-ui, sans-serif'
+    });
+
+    // Auto-size width to fit text
+    const textWidth = text.calcTextWidth ? text.calcTextWidth() : text.width;
+    const tileWidth = Math.max(this.TILE_WIDTH, textWidth + 24);
+
     const rect = new fabric.Rect({
-      width: this.TILE_WIDTH,
+      width: tileWidth,
       height: this.TILE_HEIGHT,
       fill: colors.bg,
       rx: 6,
@@ -210,16 +243,6 @@ class CanvasManager {
       strokeWidth: 1.5,
       originX: 'center',
       originY: 'center'
-    });
-
-    const text = new fabric.Text(label, {
-      fontSize: 12,
-      fontWeight: 'bold',
-      fill: colors.text,
-      textAlign: 'center',
-      originX: 'center',
-      originY: 'center',
-      fontFamily: 'system-ui, sans-serif'
     });
 
     const group = new fabric.Group([rect, text], {
@@ -233,9 +256,24 @@ class CanvasManager {
 
   createTerminalTile(text, colors) {
     const isEmpty = !text || text === '...';
+    const fontSize = this.presentationMode ? this.PRESENT_TERMINAL_FONT_SIZE : this.EDIT_TERMINAL_FONT_SIZE;
+
+    const label = new fabric.Text(text || '...', {
+      fontSize: fontSize,
+      fill: colors.text,
+      textAlign: 'center',
+      originX: 'center',
+      originY: 'center',
+      top: isEmpty ? -6 : 0,
+      fontFamily: 'system-ui, sans-serif'
+    });
+
+    // Auto-size width to fit text
+    const textWidth = label.calcTextWidth ? label.calcTextWidth() : label.width;
+    const tileWidth = Math.max(this.TERMINAL_WIDTH, textWidth + 20);
 
     const rect = new fabric.Rect({
-      width: this.TERMINAL_WIDTH,
+      width: tileWidth,
       height: this.TERMINAL_HEIGHT,
       fill: colors.bg,
       rx: 5,
@@ -244,16 +282,6 @@ class CanvasManager {
       strokeWidth: 1,
       originX: 'center',
       originY: 'center'
-    });
-
-    const label = new fabric.Text(text || '...', {
-      fontSize: 13,
-      fill: colors.text,
-      textAlign: 'center',
-      originX: 'center',
-      originY: 'center',
-      top: isEmpty ? -6 : 0,
-      fontFamily: 'system-ui, sans-serif'
     });
 
     const hint = new fabric.Text('Ctrl+click to type', {
@@ -280,6 +308,7 @@ class CanvasManager {
 
   setupTileEvents(tile, node) {
     let lastPosition = { x: 0, y: 0 };
+    let dragStartPosition = { x: 0, y: 0 };
     let isDragging = false;
 
     tile.on('moving', () => {
@@ -300,8 +329,12 @@ class CanvasManager {
 
     tile.on('mousedown', (e) => {
       lastPosition = { x: tile.left, y: tile.top };
+      dragStartPosition = { x: tile.left, y: tile.top };
       isDragging = false;
       e.e.stopPropagation();
+
+      // Suppress relayout during drag to prevent sibling positions from shifting
+      this._suppressRelayout = true;
 
       // Add lift effect
       tile.set({
@@ -319,7 +352,7 @@ class CanvasManager {
       this.canvas.requestRenderAll();
     });
 
-    tile.on('mouseup', () => {
+    tile.on('mouseup', (e) => {
       // Remove lift effect
       if (this.selectedTile !== tile) {
         tile.set({ shadow: null });
@@ -332,8 +365,14 @@ class CanvasManager {
         node.x = dropCenter.x;
         node.y = dropCenter.y;
 
+        // Calculate total drag distance from start
+        const totalDragDx = tile.left - dragStartPosition.x;
+        const totalDragDy = tile.top - dragStartPosition.y;
+        const totalDragDistance = Math.sqrt(totalDragDx * totalDragDx + totalDragDy * totalDragDy);
+        const shiftHeld = e.e && e.e.shiftKey;
+
         // Finalize auto-connection based on final position
-        this.finalizeAutoConnection(node, tile);
+        this.finalizeAutoConnection(node, tile, totalDragDistance, shiftHeld);
 
         // Sync all sibling positions from canvas tiles before reordering
         this.syncSiblingPositions(node);
@@ -341,13 +380,17 @@ class CanvasManager {
         // Reorder siblings based on horizontal position
         node.reorderByPosition();
 
-        // Trigger relayout to apply proper spacing with new sibling order
+        // Unsuppress relayout and trigger a single correct relayout
+        this._suppressRelayout = false;
         this.relayout(true);
 
         if (this.onTreeChanged) {
           this.onTreeChanged();
         }
       } else {
+        // Not dragging — unsuppress relayout
+        this._suppressRelayout = false;
+
         // Clean up preview even if not dragging (e.g., click without drag)
         this.hidePotentialConnection();
         this.hideInsertionPreview();
@@ -640,7 +683,7 @@ class CanvasManager {
   /**
    * Line insertion threshold - distance to a connection line to trigger insertion mode.
    */
-  LINE_INSERTION_THRESHOLD = 40; // pixels
+  LINE_INSERTION_THRESHOLD = 120; // pixels - distance to a connection line to trigger insertion mode
 
   /**
    * Find if a node is close to an existing connection line (for insertion between nodes).
@@ -715,7 +758,7 @@ class CanvasManager {
     let t = ((px - x1) * dx + (py - y1) * dy) / lengthSquared;
 
     // Clamp t to [0, 1] but allow small margin for near-endpoint cases
-    if (t < 0.1 || t > 0.9) {
+    if (t < 0.05 || t > 0.95) {
       // Too close to endpoints - prefer direct parent connection instead
       return null;
     }
@@ -729,9 +772,73 @@ class CanvasManager {
   }
 
   /**
-   * Find the best parent candidate for a node based on proximity.
+   * Find if a node is horizontally between two adjacent siblings.
+   * Handles the case where connection lines are nearly vertical and
+   * point-to-line distance fails. Returns { parent, leftChild, rightChild }
+   * or null if not between any siblings.
+   */
+  findSiblingInsertionZone(node, tile) {
+    const nodeCenter = tile.getCenterPoint();
+    let bestMatch = null;
+    let bestHorizontalDistance = Infinity;
+
+    for (const parentNode of this.tree.getAllNodes()) {
+      if (parentNode === node || parentNode.isTerminal()) continue;
+      if (parentNode.children.length < 2) continue;
+      if (node.isAncestorOf(parentNode)) continue;
+
+      const parentTile = this.nodeToCanvas.get(parentNode.id);
+      if (!parentTile) continue;
+      const parentCenter = parentTile.getCenterPoint();
+
+      // Node must be below the parent
+      if (nodeCenter.y <= parentCenter.y + this.MIN_VERTICAL_GAP) continue;
+
+      // Check each pair of adjacent siblings
+      for (let i = 0; i < parentNode.children.length - 1; i++) {
+        const leftChild = parentNode.children[i];
+        const rightChild = parentNode.children[i + 1];
+        if (leftChild === node || rightChild === node) continue;
+
+        const leftTile = this.nodeToCanvas.get(leftChild.id);
+        const rightTile = this.nodeToCanvas.get(rightChild.id);
+        if (!leftTile || !rightTile) continue;
+
+        const leftCenter = leftTile.getCenterPoint();
+        const rightCenter = rightTile.getCenterPoint();
+
+        // Node must be horizontally between the two siblings
+        const minX = Math.min(leftCenter.x, rightCenter.x);
+        const maxX = Math.max(leftCenter.x, rightCenter.x);
+        if (nodeCenter.x < minX - 20 || nodeCenter.x > maxX + 20) continue;
+
+        // Node must be at roughly the same vertical level as the siblings (within 1.5 levels)
+        const siblingAvgY = (leftCenter.y + rightCenter.y) / 2;
+        const verticalDiff = Math.abs(nodeCenter.y - siblingAvgY);
+        if (verticalDiff > this.LEVEL_HEIGHT * 1.5) continue;
+
+        // Calculate how centered the node is between the siblings
+        const midX = (leftCenter.x + rightCenter.x) / 2;
+        const hDist = Math.abs(nodeCenter.x - midX);
+        const gap = maxX - minX;
+
+        // Only trigger if within the gap zone (with some margin)
+        if (hDist < gap / 2 + 30 && hDist < bestHorizontalDistance) {
+          bestHorizontalDistance = hDist;
+          bestMatch = { parent: parentNode, leftChild, rightChild };
+        }
+      }
+    }
+
+    return bestMatch;
+  }
+
+  /**
+   * Find the best parent candidate for a node based on proximity and tree context.
    * Parent must be above the child (smaller y value).
    * Uses weighted distance that penalizes horizontal offset more.
+   * Gives a bonus to candidates already in the same subtree (e.g., existing parent
+   * or sibling's parent), reducing wrong-parent connections in overlapping trees.
    * Returns { node, distance, tile } or null if no suitable parent found.
    */
   findBestParentCandidate(childNode, childTile) {
@@ -739,6 +846,9 @@ class CanvasManager {
     let bestCandidate = null;
     let bestScore = Infinity;
     let bestTile = null;
+
+    // If the node was previously connected, remember its old parent for affinity
+    const currentParent = childNode.parent;
 
     for (const [nodeId, tile] of this.nodeToCanvas) {
       const node = this.tree.findById(nodeId);
@@ -760,8 +870,17 @@ class CanvasManager {
       const dy = Math.abs(tileCenter.y - childCenter.y);
 
       // Score: horizontal distance weighted more heavily + vertical distance
-      // This prefers parents that are more directly above
-      const score = (dx * this.HORIZONTAL_WEIGHT) + dy;
+      let score = (dx * this.HORIZONTAL_WEIGHT) + dy;
+
+      // Hierarchy bonus: prefer the current parent (stability during small adjustments)
+      if (node === currentParent) {
+        score *= 0.6; // 40% bonus for existing parent
+      }
+      // Also prefer nodes that are exactly one level above (direct parent distance)
+      const levelDiff = Math.round(dy / this.LEVEL_HEIGHT);
+      if (levelDiff === 1) {
+        score *= 0.85; // 15% bonus for one-level-above candidates
+      }
 
       // Raw distance for threshold check
       const distance = Math.sqrt(dx * dx + dy * dy);
@@ -1151,6 +1270,35 @@ class CanvasManager {
       return;
     }
 
+    // Check for sibling insertion zone (between adjacent siblings horizontally)
+    const siblingZone = this.findSiblingInsertionZone(node, tile);
+
+    if (siblingZone) {
+      // Show insertion preview between the two siblings
+      this.potentialInsertion = { parent: siblingZone.parent, child: siblingZone.rightChild };
+      this.potentialParent = null;
+      this.hidePotentialConnection();
+
+      const parentTile = this.nodeToCanvas.get(siblingZone.parent.id);
+      const rightTile = this.nodeToCanvas.get(siblingZone.rightChild.id);
+
+      if (parentTile && rightTile) {
+        this.showInsertionPreview(tile, parentTile, rightTile);
+
+        if (this._lastHighlightedTile) {
+          this.highlightConnectionTarget(this._lastHighlightedTile, false);
+        }
+        if (this._lastHighlightedTile2) {
+          this.highlightConnectionTarget(this._lastHighlightedTile2, false);
+        }
+        this.highlightInsertionTarget(parentTile, true);
+        this.highlightInsertionTarget(rightTile, true);
+        this._lastHighlightedTile = parentTile;
+        this._lastHighlightedTile2 = rightTile;
+      }
+      return;
+    }
+
     // Clear insertion preview if we're not in insertion mode
     this.hideInsertionPreview();
     if (this._lastHighlightedTile2) {
@@ -1217,8 +1365,12 @@ class CanvasManager {
   /**
    * Finalize auto-connection on mouseup.
    * Handles insertion between nodes, regular parent connection, or disconnection.
+   * @param {TreeNode} node - The node being dragged
+   * @param {fabric.Object} tile - The canvas tile
+   * @param {number} totalDragDistance - Total distance dragged from start (0 for drops)
+   * @param {boolean} shiftHeld - Whether shift key was held during drag
    */
-  finalizeAutoConnection(node, tile) {
+  finalizeAutoConnection(node, tile, totalDragDistance = Infinity, shiftHeld = false) {
     // Clean up all previews
     this.hidePotentialConnection();
     this.hideInsertionPreview();
@@ -1229,6 +1381,14 @@ class CanvasManager {
     if (this._lastHighlightedTile2) {
       this.highlightConnectionTarget(this._lastHighlightedTile2, false);
       this._lastHighlightedTile2 = null;
+    }
+
+    // Small drags (< MIN_DRAG_FOR_DISCONNECT) never change connections at all
+    // unless shift is held (explicit disconnect intent)
+    const tooSmallForChange = totalDragDistance < this.MIN_DRAG_FOR_DISCONNECT && !shiftHeld;
+    if (tooSmallForChange && node.parent) {
+      // Small adjustment of a connected node — keep existing connection, skip relayout logic
+      return;
     }
 
     // First, check for insertion between nodes
@@ -1253,6 +1413,24 @@ class CanvasManager {
       return;
     }
 
+    // Check for sibling insertion zone (between adjacent siblings horizontally)
+    const siblingZone = this.findSiblingInsertionZone(node, tile);
+
+    if (siblingZone) {
+      const { parent, rightChild } = siblingZone;
+
+      // Disconnect node from its current parent if any
+      if (node.parent) {
+        this.tree.disconnect(node);
+      }
+
+      // Insert as a new child of the parent, positioned before rightChild
+      const rightIndex = parent.children.indexOf(rightChild);
+      this.tree.connect(parent, node, rightIndex);
+
+      return;
+    }
+
     // Fall back to regular parent candidate logic
     const candidate = this.findBestParentCandidate(node, tile);
 
@@ -1266,18 +1444,22 @@ class CanvasManager {
       }
     } else {
       // No suitable parent - check if we should disconnect
+      // Disconnect requires BOTH: (1) far from parent AND (2) intentional drag (large move or shift held)
       if (node.parent) {
-        const parentTile = this.nodeToCanvas.get(node.parent.id);
-        if (parentTile) {
-          const parentCenter = parentTile.getCenterPoint();
-          const childCenter = tile.getCenterPoint();
-          const dx = parentCenter.x - childCenter.x;
-          const dy = parentCenter.y - childCenter.y;
-          const distance = Math.sqrt(dx * dx + dy * dy);
+        const canDisconnect = shiftHeld || totalDragDistance >= this.MIN_DRAG_FOR_DISCONNECT;
+        if (canDisconnect) {
+          const parentTile = this.nodeToCanvas.get(node.parent.id);
+          if (parentTile) {
+            const parentCenter = parentTile.getCenterPoint();
+            const childCenter = tile.getCenterPoint();
+            const dx = parentCenter.x - childCenter.x;
+            const dy = parentCenter.y - childCenter.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
 
-          // Only disconnect if moved far enough away
-          if (distance > this.DISCONNECT_THRESHOLD) {
-            this.tree.disconnect(node);
+            // Only disconnect if moved far enough away from parent
+            if (distance > this.DISCONNECT_THRESHOLD) {
+              this.tree.disconnect(node);
+            }
           }
         }
       }
@@ -2082,6 +2264,57 @@ class CanvasManager {
     };
 
     requestAnimationFrame(animate);
+  }
+
+  // === Presentation Mode ===
+
+  togglePresentationMode() {
+    this.presentationMode = !this.presentationMode;
+
+    if (this.presentationMode) {
+      this.UNIT_WIDTH = this.PRESENT_UNIT_WIDTH;
+      this.LEVEL_HEIGHT = this.PRESENT_LEVEL_HEIGHT;
+      this.TOP_MARGIN = this.PRESENT_TOP_MARGIN;
+    } else {
+      this.UNIT_WIDTH = this.EDIT_UNIT_WIDTH;
+      this.LEVEL_HEIGHT = this.EDIT_LEVEL_HEIGHT;
+      this.TOP_MARGIN = this.EDIT_TOP_MARGIN;
+    }
+
+    // Update font sizes on all existing tiles
+    const targetFontSize = this.presentationMode ? this.PRESENT_FONT_SIZE : this.EDIT_FONT_SIZE;
+    const targetTerminalFontSize = this.presentationMode ? this.PRESENT_TERMINAL_FONT_SIZE : this.EDIT_TERMINAL_FONT_SIZE;
+
+    for (const [nodeId, tile] of this.nodeToCanvas) {
+      const node = this.tree.findById(nodeId);
+      if (!node) continue;
+
+      const textObj = tile.item(1);
+      if (node.isTerminal()) {
+        textObj.set({ fontSize: targetTerminalFontSize });
+      } else {
+        textObj.set({ fontSize: targetFontSize });
+      }
+
+      // Auto-size tile width to fit text
+      const textWidth = textObj.calcTextWidth ? textObj.calcTextWidth() : textObj.width;
+      const padding = node.isTerminal() ? 20 : 24;
+      const minWidth = node.isTerminal() ? this.TERMINAL_WIDTH : this.TILE_WIDTH;
+      const newWidth = Math.max(minWidth, textWidth + padding);
+      tile.item(0).set({ width: newWidth });
+
+      // Recalculate group bounds
+      tile.addWithUpdate();
+    }
+
+    this.relayout(true);
+
+    // After relayout animation completes, fit to view
+    setTimeout(() => {
+      this.fitToView(true);
+    }, this.ANIMATION_DURATION + 50);
+
+    return this.presentationMode;
   }
 
   // === Export ===

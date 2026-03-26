@@ -346,14 +346,14 @@ class SyntaxTree {
   }
 
   // Connect two nodes (child becomes child of parent)
-  connect(parent, child) {
+  connect(parent, child, index = null) {
     // If child is a root, remove it from roots
     const rootIndex = this.roots.indexOf(child);
     if (rootIndex > -1) {
       this.roots.splice(rootIndex, 1);
     }
 
-    parent.addChild(child);
+    parent.addChild(child, index);
     this.emit('nodes-connected', { parent, child });
   }
 
