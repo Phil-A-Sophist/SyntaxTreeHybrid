@@ -2345,6 +2345,9 @@ class CanvasManager {
     // We do one correct relayout at the end instead.
     this._suppressRelayout = true;
 
+    // Batch tree events so sync engine doesn't rebuild mid-setup
+    this.tree.beginBatch();
+
     if (type === 'terminal') {
       // Word dragged from palette input
       const terminal = this.tree.createNode(value, NodeType.TERMINAL);
@@ -2362,6 +2365,7 @@ class CanvasManager {
       terminal.reorderByPosition();
 
       this._suppressRelayout = false;
+      this.tree.endBatch();
       this.updateConnectionLines();
       this.relayout(true);
 
@@ -2407,6 +2411,7 @@ class CanvasManager {
     }
 
     this._suppressRelayout = false;
+    this.tree.endBatch(); // fires single 'tree-changed' event
     this.updateConnectionLines();
 
     // Now trigger a single relayout with all tiles present and correct order
