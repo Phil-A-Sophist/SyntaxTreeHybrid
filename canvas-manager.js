@@ -127,8 +127,10 @@ class CanvasManager {
   }
 
   createLens() {
-    const wrapper = document.getElementById('canvas-wrapper');
-    if (!wrapper) return;
+    // Append to canvas-container (created by Fabric.js) so the lens
+    // renders above the upper-canvas interaction layer
+    const container = this.canvas.wrapperEl || document.querySelector('.canvas-container');
+    if (!container) return;
 
     const size = this.LENS_RADIUS * 2;
     const lens = document.createElement('canvas');
@@ -142,10 +144,10 @@ class CanvasManager {
       border: 2px solid #333;
       box-shadow: 0 2px 12px rgba(0,0,0,0.3);
       pointer-events: none;
-      z-index: 20;
+      z-index: 100;
       display: none;
     `;
-    wrapper.appendChild(lens);
+    container.appendChild(lens);
     this.lensCanvas = lens;
     this.lensCtx = lens.getContext('2d');
   }
@@ -1184,18 +1186,18 @@ class CanvasManager {
   updateLens(screenX, screenY) {
     if (!this.lensCanvas || !this.lensCtx) return;
 
-    const wrapper = document.getElementById('canvas-wrapper');
-    if (!wrapper) return;
-    const wrapperRect = wrapper.getBoundingClientRect();
+    const container = this.lensCanvas.parentElement;
+    if (!container) return;
+    const containerRect = container.getBoundingClientRect();
 
     // Position lens below the cursor
     const lensSize = this.LENS_RADIUS * 2;
-    let lensLeft = screenX - wrapperRect.left - this.LENS_RADIUS;
-    let lensTop = screenY - wrapperRect.top + this.LENS_OFFSET_Y - this.LENS_RADIUS;
+    let lensLeft = screenX - containerRect.left - this.LENS_RADIUS;
+    let lensTop = screenY - containerRect.top + this.LENS_OFFSET_Y - this.LENS_RADIUS;
 
-    // Clamp within wrapper bounds
-    lensLeft = Math.max(0, Math.min(wrapperRect.width - lensSize, lensLeft));
-    lensTop = Math.max(0, Math.min(wrapperRect.height - lensSize, lensTop));
+    // Clamp within container bounds
+    lensLeft = Math.max(0, Math.min(containerRect.width - lensSize, lensLeft));
+    lensTop = Math.max(0, Math.min(containerRect.height - lensSize, lensTop));
 
     this.lensCanvas.style.left = lensLeft + 'px';
     this.lensCanvas.style.top = lensTop + 'px';
@@ -1212,8 +1214,8 @@ class CanvasManager {
 
     // Source region: area around cursor on the raw canvas, accounting for pixel ratio
     const pixelRatio = sourceCanvas.width / sourceCanvas.offsetWidth;
-    const cursorOnCanvasX = (screenX - wrapperRect.left) * pixelRatio;
-    const cursorOnCanvasY = (screenY - wrapperRect.top) * pixelRatio;
+    const cursorOnCanvasX = (screenX - containerRect.left) * pixelRatio;
+    const cursorOnCanvasY = (screenY - containerRect.top) * pixelRatio;
     const sourceRadius = (this.LENS_RADIUS / mag) * pixelRatio;
 
     const sx = cursorOnCanvasX - sourceRadius;
