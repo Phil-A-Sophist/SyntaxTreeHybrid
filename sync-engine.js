@@ -78,6 +78,8 @@ class SyncEngine {
   setupTreeListeners() {
     this.tree.addEventListener((event, data) => {
       if (this.isSyncing) return;
+      // Canvas manager can suppress sync during complex operations (e.g. handleDrop)
+      if (this.canvasManager._suppressSync) return;
 
       // Tree changed - sync to text
       if (!this.textIsFocused) {

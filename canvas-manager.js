@@ -2339,14 +2339,11 @@ class CanvasManager {
   handleDrop(dropData, x, y) {
     const { type, value } = dropData;
 
-    // Suppress event-triggered relayouts during the entire drop operation.
-    // Tree events (root-added, nodes-connected) fire relayout via sync engine,
-    // which would run BEFORE we reorder siblings, corrupting node.x values.
-    // We do one correct relayout at the end instead.
+    // Suppress ALL sync engine activity during the drop operation.
+    // Tree events (root-added, nodes-connected) would trigger syncFromTree
+    // which clears the canvas mid-setup, destroying compound tile mappings.
     this._suppressRelayout = true;
-
-    // Batch tree events so sync engine doesn't rebuild mid-setup
-    this.tree.beginBatch();
+    this._suppressSync = true;
 
     if (type === 'terminal') {
       // Word dragged from palette input
@@ -2365,7 +2362,7 @@ class CanvasManager {
       terminal.reorderByPosition();
 
       this._suppressRelayout = false;
-      this.tree.endBatch();
+      this._suppressSync = false;
       this.updateConnectionLines();
       this.relayout(true);
 
@@ -2411,7 +2408,7 @@ class CanvasManager {
     }
 
     this._suppressRelayout = false;
-    this.tree.endBatch(); // fires single 'tree-changed' event
+    this._suppressSync = false;
     this.updateConnectionLines();
 
     // Now trigger a single relayout with all tiles present and correct order
