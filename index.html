@@ -276,6 +276,101 @@
       display: none;
     }
 
+    /* Table view container */
+    #table-container {
+      display: none;
+      flex: 1;
+      overflow: auto;
+      padding: 20px;
+      background: #f5f5f5;
+      min-height: 100px;
+      margin: 4px 6px;
+    }
+
+    .labeling-table {
+      border-collapse: collapse;
+      margin: 20px auto;
+    }
+
+    .labeling-table td,
+    .labeling-table th {
+      border: 1px solid #333;
+      padding: 6px 14px;
+      text-align: center;
+      min-width: 60px;
+    }
+
+    .labeling-table th {
+      background: #e0e0e0;
+      font-weight: 600;
+      text-align: right;
+      padding-right: 10px;
+    }
+
+    .labeling-table .word { background: #fff; font-weight: 600; }
+    .labeling-table .pos { background: #e8f5e9; }
+    .labeling-table .phrase { background: #e3f2fd; }
+    .labeling-table .clause { background: #f3e5f5; }
+    .labeling-table .role { background: #fff3e0; }
+    .labeling-table .empty { background: #ccc; border: 1px solid #ccc; border-right: 1px solid #333; }
+
+    .labeling-table .lsh,
+    .labeling-table .lsh ~ td { border-top: 5px solid #222; }
+    .labeling-table tr:first-child td,
+    .labeling-table tr:first-child th { border-top: 5px solid #222; }
+    .labeling-table tr:last-child td,
+    .labeling-table tr:last-child th { border-bottom: 5px solid #222; }
+    .labeling-table tr td:first-of-type,
+    .labeling-table tr th { border-left: 5px solid #222; }
+    .labeling-table tr td:last-child { border-right: 5px solid #222; }
+
+    .labeling-table td[contenteditable="true"]:empty::before {
+      content: '...';
+      color: #bbb;
+      font-style: italic;
+    }
+
+    .labeling-table td[contenteditable="true"]:focus {
+      outline: 2px solid #0066ff;
+      outline-offset: -2px;
+      background: #fff8e6;
+    }
+
+    .table-empty {
+      text-align: center;
+      color: #999;
+      font-style: italic;
+      padding: 40px;
+    }
+
+    /* Role reference bar (shown in table view) */
+    .role-bar {
+      display: none;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      background: #fafafa;
+      border-top: 1px solid #ddd;
+      flex-shrink: 0;
+    }
+
+    .role-bar .role-label {
+      font-weight: 600;
+      font-size: 11px;
+      color: #666;
+    }
+
+    .role-bar .role-chip {
+      padding: 3px 10px;
+      background: #fff3e0;
+      border: 1px solid #e0c088;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #333;
+    }
+
     /* Drag-over visual feedback for canvas */
     .upper-canvas.drag-over,
     #diagram-canvas.drag-over {
@@ -287,16 +382,21 @@
 
   <!-- Fabric.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.2.4/fabric.min.js"></script>
+  <!-- html2canvas for table PNG export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
 <body>
   <header class="app-header">
     <div class="header-left">
       <button id="copy-tree" class="export-btn">copy tree</button>
+      <button id="copy-table" class="export-btn" style="display:none">copy table</button>
     </div>
     <h1>Syntax Tree Builder</h1>
     <div class="header-right">
       <span id="export-status" class="export-status"></span>
       <button id="download-tree" class="export-btn">download tree</button>
+      <button id="download-table" class="export-btn" style="display:none">download table</button>
+      <button class="export-btn" id="view-toggle" title="Switch between tree and table view">Table View</button>
       <button class="export-btn" id="presentation-toggle" title="Toggle presentation mode for classroom projection">Present</button>
     </div>
   </header>
@@ -322,6 +422,9 @@
     </div>
     <canvas id="diagram-canvas"></canvas>
   </div>
+
+  <!-- Table view (hidden by default) -->
+  <div id="table-container"></div>
 
   <!-- All palette tiles — one bottom bar -->
   <div class="palette-bar">
@@ -353,6 +456,20 @@
     <div class="palette-tile" data-type="pos" data-value="SUB" data-abbrev="SUB" style="background-color: #D5DBDB; color: #000;" draggable="true">SUB</div>
   </div>
 
+  <!-- Role reference bar (shown in table view) -->
+  <div class="role-bar" id="role-bar">
+    <span class="role-label">Roles:</span>
+    <span class="role-chip">Subject</span>
+    <span class="role-chip">Predicate</span>
+    <span class="role-chip">Main</span>
+    <span class="role-chip">DO</span>
+    <span class="role-chip">IO</span>
+    <span class="role-chip">SC</span>
+    <span class="role-chip">OC</span>
+    <span class="role-chip">Adjectival</span>
+    <span class="role-chip">Adverbial</span>
+  </div>
+
   <!-- Hidden word input (preserved for code compatibility) -->
   <div class="word-input-section">
     <input type="text" id="word-input" placeholder="type here" autocomplete="off">
@@ -364,6 +481,7 @@
   <script src="bracket-serializer.js"></script>
   <script src="canvas-manager.js"></script>
   <script src="sync-engine.js"></script>
+  <script src="table-generator.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Hierarchical Labeling Table Mockup</title>
+<style>
+  body {
+    font-family: 'Segoe UI', sans-serif;
+    padding: 40px;
+    background: #f5f5f5;
+  }
+  h2 { margin-top: 40px; }
+  table {
+    border-collapse: collapse;
+    margin: 20px 0;
+  }
+  td, th {
+    border: 1px solid #333;
+    padding: 6px 14px;
+    text-align: center;
+    min-width: 60px;
+  }
+  th {
+    background: #e0e0e0;
+    font-weight: 600;
+    text-align: right;
+    padding-right: 10px;
+  }
+  .word { background: #fff; font-weight: 600; }
+  th.word-header { }
+  .pos { background: #e8f5e9; }
+  .phrase { background: #e3f2fd; }
+  .clause { background: #f3e5f5; }
+  .role { background: #fff3e0; }
+  .empty { background: #ccc; border: 1px solid #ccc; border-right: 1px solid #333; }
+
+  /* Bold horizontal border at the top of each level */
+  .lsh, .lsh ~ td { border-top: 5px solid #222; }
+  table tr:first-child td, table tr:first-child th { border-top: 5px solid #222; }
+  /* Bold on the very bottom of the table */
+  table tr:last-child td, table tr:last-child th { border-bottom: 5px solid #222; }
+  table tr td:first-of-type, table tr th { border-left: 5px solid #222; }
+  table tr td:last-child { border-right: 5px solid #222; }
+</style>
+</head>
+<body>
+
+<h1>Hierarchical Labeling Tables — Mockup</h1>
+
+<h2>1. "The dog barked." (flat — no nesting)</h2>
+<table>
+  <tr>
+    <th class="lsh">Role</th>
+    <td class="role" colspan="2">Subject</td>
+    <td class="role">Predicate</td>
+  </tr>
+  <tr>
+    <th>Phrase</th>
+    <td class="phrase" colspan="2">NP</td>
+    <td class="phrase">VP</td>
+  </tr>
+  <tr>
+    <th class="lsh">POS</th>
+    <td class="pos">DET</td>
+    <td class="pos">N</td>
+    <td class="pos">V</td>
+  </tr>
+  <tr>
+    <th class="lsh word-header">Word</th>
+    <td class="word">The</td>
+    <td class="word">dog</td>
+    <td class="word">barked</td>
+  </tr>
+</table>
+
+<h2>2. "The cat chased the mouse." (one level of nesting)</h2>
+<table>
+  <tr>
+    <th class="lsh">Role 1</th>
+    <td class="role" colspan="2">Subject</td>
+    <td class="role" colspan="3">Predicate</td>
+  </tr>
+  <tr>
+    <th>Phrase 1</th>
+    <td class="phrase" colspan="2">NP</td>
+    <td class="phrase" colspan="3">VP</td>
+  </tr>
+  <tr>
+    <th class="lsh">Role 2</th>
+    <td class="empty" colspan="3"></td>
+    <td class="role" colspan="2">Direct Object</td>
+  </tr>
+  <tr>
+    <th>Phrase 2</th>
+    <td class="empty" colspan="3"></td>
+    <td class="phrase" colspan="2">NP</td>
+  </tr>
+  <tr>
+    <th class="lsh">POS</th>
+    <td class="pos">DET</td>
+    <td class="pos">N</td>
+    <td class="pos">V</td>
+    <td class="pos">DET</td>
+    <td class="pos">N</td>
+  </tr>
+  <tr>
+    <th class="lsh word-header">Word</th>
+    <td class="word">The</td>
+    <td class="word">cat</td>
+    <td class="word">chased</td>
+    <td class="word">the</td>
+    <td class="word">mouse</td>
+  </tr>
+</table>
+
+<h2>3. "The cat sat on the mat." (PP nesting inside VP)</h2>
+<table>
+  <tr>
+    <th class="lsh">Role 1</th>
+    <td class="role" colspan="2">Subject</td>
+    <td class="role" colspan="4">Predicate</td>
+  </tr>
+  <tr>
+    <th>Phrase 1</th>
+    <td class="phrase" colspan="2">NP</td>
+    <td class="phrase" colspan="4">VP</td>
+  </tr>
+  <tr>
+    <th class="lsh">Role 2</th>
+    <td class="empty" colspan="3"></td>
+    <td class="role" colspan="3">Adverbial</td>
+  </tr>
+  <tr>
+    <th>Phrase 2</th>
+    <td class="empty" colspan="3"></td>
+    <td class="phrase" colspan="3">PP</td>
+  </tr>
+  <tr>
+    <th class="lsh">Role 3</th>
+    <td class="empty" colspan="4"></td>
+    <td class="role" colspan="2">Object of Prep</td>
+  </tr>
+  <tr>
+    <th>Phrase 3</th>
+    <td class="empty" colspan="4"></td>
+    <td class="phrase" colspan="2">NP</td>
+  </tr>
+  <tr>
+    <th class="lsh">POS</th>
+    <td class="pos">DET</td>
+    <td class="pos">N</td>
+    <td class="pos">V</td>
+    <td class="pos">PREP</td>
+    <td class="pos">DET</td>
+    <td class="pos">N</td>
+  </tr>
+  <tr>
+    <th class="lsh word-header">Word</th>
+    <td class="word">The</td>
+    <td class="word">cat</td>
+    <td class="word">sat</td>
+    <td class="word">on</td>
+    <td class="word">the</td>
+    <td class="word">mat</td>
+  </tr>
+</table>
+
+<h2>5. "Because the dog barked, the cat ran." (DC — Adverbial)</h2>
+<table>
+  <!-- Level 1: Clause -->
+  <tr>
+    <th class="lsh">Role 1</th>
+    <td class="role" colspan="4">Adverbial</td>
+    <td class="role" colspan="3">Main</td>
+  </tr>
+  <tr>
+    <th>Clause 1</th>
+    <td class="clause" colspan="4">DC</td>
+    <td class="clause" colspan="3">IC</td>
+  </tr>
+  <!-- Level 2: Phrase (within each clause) -->
+  <tr>
+    <th class="lsh">Role 2</th>
+    <td class="empty"></td>
+    <td class="role" colspan="2">Subject</td>
+    <td class="role">Predicate</td>
+    <td class="role" colspan="2">Subject</td>
+    <td class="role">Predicate</td>
+  </tr>
+  <tr>
+    <th>Phrase 2</th>
+    <td class="empty"></td>
+    <td class="phrase" colspan="2">NP</td>
+    <td class="phrase">VP</td>
+    <td class="phrase" colspan="2">NP</td>
+    <td class="phrase">VP</td>
+  </tr>
+  <!-- POS -->
+  <tr>
+    <th class="lsh">POS</th>
+    <td class="pos">COMP</td>
+    <td class="pos">DET</td>
+    <td class="pos">N</td>
+    <td class="pos">V</td>
+    <td class="pos">DET</td>
+    <td class="pos">N</td>
+    <td class="pos">V</td>
+  </tr>
+  <!-- Word -->
+  <tr>
+    <th class="lsh word-header">Word</th>
+    <td class="word">Because</td>
+    <td class="word">the</td>
+    <td class="word">dog</td>
+    <td class="word">barked</td>
+    <td class="word">the</td>
+    <td class="word">cat</td>
+    <td class="word">ran</td>
+  </tr>
+</table>
+
+<h2>6. "The cat that chased the mouse ran." (RC — Adjectival)</h2>
+<table>
+  <!-- Level 1: Sentence-level phrase -->
+  <tr>
+    <th class="lsh">Role 1</th>
+    <td class="role" colspan="6">Subject</td>
+    <td class="role">Predicate</td>
+  </tr>
+  <tr>
+    <th>Phrase 1</th>
+    <td class="phrase" colspan="6">NP</td>
+    <td class="phrase">VP</td>
+  </tr>
+  <!-- Level 2: RC within subject NP -->
+  <tr>
+    <th class="lsh">Role 2</th>
+    <td class="empty" colspan="2"></td>
+    <td class="role" colspan="4">Adjectival</td>
+    <td class="empty"></td>
+  </tr>
+  <tr>
+    <th>Clause 2</th>
+    <td class="empty" colspan="2"></td>
+    <td class="clause" colspan="4">RC</td>
+    <td class="empty"></td>
+  </tr>
+  <!-- Level 3: Phrase within RC -->
+  <tr>
+    <th class="lsh">Role 3</th>
+    <td class="empty" colspan="2"></td>
+    <td class="role">Subject</td>
+    <td class="role" colspan="3">Predicate</td>
+    <td class="empty"></td>
+  </tr>
+  <tr>
+    <th>Phrase 3</th>
+    <td class="empty" colspan="2"></td>
+    <td class="phrase">NP</td>
+    <td class="phrase" colspan="3">VP</td>
+    <td class="empty"></td>
+  </tr>
+  <!-- Level 4: NP within VP within RC -->
+  <tr>
+    <th class="lsh">Role 4</th>
+    <td class="empty" colspan="4"></td>
+    <td class="role" colspan="2">Direct Object</td>
+    <td class="empty"></td>
+  </tr>
+  <tr>
+    <th>Phrase 4</th>
+    <td class="empty" colspan="4"></td>
+    <td class="phrase" colspan="2">NP</td>
+    <td class="empty"></td>
+  </tr>
+  <!-- POS -->
+  <tr>
+    <th class="lsh">POS</th>
+    <td class="pos">DET</td>
+    <td class="pos">N</td>
+    <td class="pos">REL</td>
+    <td class="pos">V</td>
+    <td class="pos">DET</td>
+    <td class="pos">N</td>
+    <td class="pos">V</td>
+  </tr>
+  <!-- Word -->
+  <tr>
+    <th class="lsh word-header">Word</th>
+    <td class="word">The</td>
+    <td class="word">cat</td>
+    <td class="word">that</td>
+    <td class="word">chased</td>
+    <td class="word">the</td>
+    <td class="word">mouse</td>
+    <td class="word">ran</td>
+  </tr>
+</table>
+
+<h2>7. "I know that she left." (CC — Direct Object)</h2>
+<table>
+  <!-- Level 1: Sentence-level phrase -->
+  <tr>
+    <th class="lsh">Role 1</th>
+    <td class="role">Subject</td>
+    <td class="role" colspan="4">Predicate</td>
+  </tr>
+  <tr>
+    <th>Phrase 1</th>
+    <td class="phrase">NP</td>
+    <td class="phrase" colspan="4">VP</td>
+  </tr>
+  <!-- Level 2: CC within VP -->
+  <tr>
+    <th class="lsh">Role 2</th>
+    <td class="empty" colspan="2"></td>
+    <td class="role" colspan="3">Direct Object</td>
+  </tr>
+  <tr>
+    <th>Clause 2</th>
+    <td class="empty" colspan="2"></td>
+    <td class="clause" colspan="3">CC</td>
+  </tr>
+  <!-- Level 3: Phrase within CC -->
+  <tr>
+    <th class="lsh">Role 3</th>
+    <td class="empty" colspan="3"></td>
+    <td class="role">Subject</td>
+    <td class="role">Predicate</td>
+  </tr>
+  <tr>
+    <th>Phrase 3</th>
+    <td class="empty" colspan="3"></td>
+    <td class="phrase">NP</td>
+    <td class="phrase">VP</td>
+  </tr>
+  <!-- POS -->
+  <tr>
+    <th class="lsh">POS</th>
+    <td class="pos">PRO</td>
+    <td class="pos">V</td>
+    <td class="pos">COMP</td>
+    <td class="pos">PRO</td>
+    <td class="pos">V</td>
+  </tr>
+  <!-- Word -->
+  <tr>
+    <th class="lsh word-header">Word</th>
+    <td class="word">I</td>
+    <td class="word">know</td>
+    <td class="word">that</td>
+    <td class="word">she</td>
+    <td class="word">left</td>
+  </tr>
+</table>
+
+<h2>8. Student version (blanks to fill in)</h2>
+<p><em>"The cat chased the mouse." — fill in the labels</em></p>
+<table>
+  <tr>
+    <th class="lsh">Role 1</th>
+    <td class="role" colspan="2">&nbsp;</td>
+    <td class="role" colspan="3">&nbsp;</td>
+  </tr>
+  <tr>
+    <th>Phrase 1</th>
+    <td class="phrase" colspan="2">&nbsp;</td>
+    <td class="phrase" colspan="3">&nbsp;</td>
+  </tr>
+  <tr>
+    <th class="lsh">Role 2</th>
+    <td class="empty" colspan="3"></td>
+    <td class="role" colspan="2">&nbsp;</td>
+  </tr>
+  <tr>
+    <th>Phrase 2</th>
+    <td class="empty" colspan="3"></td>
+    <td class="phrase" colspan="2">&nbsp;</td>
+  </tr>
+  <tr>
+    <th class="lsh">POS</th>
+    <td class="pos">&nbsp;</td>
+    <td class="pos">&nbsp;</td>
+    <td class="pos">&nbsp;</td>
+    <td class="pos">&nbsp;</td>
+    <td class="pos">&nbsp;</td>
+  </tr>
+  <tr>
+    <th class="lsh word-header">Word</th>
+    <td class="word">The</td>
+    <td class="word">cat</td>
+    <td class="word">chased</td>
+    <td class="word">the</td>
+    <td class="word">mouse</td>
+  </tr>
+</table>
+
+</body>
+</html>

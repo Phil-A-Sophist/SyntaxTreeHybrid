@@ -11,10 +11,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
   const syncEngine = new SyncEngine(tree, canvasManager, bracketInput, bracketStatus);
 
+  const tableGenerator = new TableGenerator();
+
   // Expose for testing and debugging
   window.canvasManager = canvasManager;
   window.tree = tree;
   window.syncEngine = syncEngine;
+  window.tableGenerator = tableGenerator;
 
   // === Palette Drag & Drop ===
   setupPaletteDragDrop(canvasManager);
@@ -31,8 +34,12 @@ document.addEventListener('DOMContentLoaded', function() {
   // === Presentation Mode Toggle ===
   setupPresentationToggle(canvasManager);
 
+  // === Table View Toggle ===
+  setupTableToggle(tableGenerator, tree, canvasManager);
+
   // === Export Buttons ===
   setupExportButtons(canvasManager);
+  setupTableExportButtons();
 
   // === URL Parameter Loading ===
   loadFromURL(tree, syncEngine);
@@ -252,6 +259,89 @@ function setupPresentationToggle(canvasManager) {
 }
 
 /**
+ * Setup table view toggle
+ */
+function setupTableToggle(tableGenerator, tree, canvasManager) {
+  const btn = document.getElementById('view-toggle');
+  const canvasWrapper = document.getElementById('canvas-wrapper');
+  const tableContainer = document.getElementById('table-container');
+  const paletteBar = document.querySelector('.palette-bar');
+  const roleBar = document.getElementById('role-bar');
+  const copyTree = document.getElementById('copy-tree');
+  const downloadTree = document.getElementById('download-tree');
+  const copyTable = document.getElementById('copy-table');
+  const downloadTable = document.getElementById('download-table');
+  let isTableView = false;
+  let refreshTimeout = null;
+
+  function refreshTable() {
+    if (isTableView) {
+      // Save current role values before regenerating
+      const savedRoles = {};
+      const roleCells = tableContainer.querySelectorAll('td.role[contenteditable="true"]');
+      for (const cell of roleCells) {
+        const level = cell.getAttribute('data-level');
+        const col = cell.getAttribute('data-col');
+        if (cell.textContent.trim()) {
+          if (!savedRoles[level]) savedRoles[level] = {};
+          savedRoles[level][col] = cell.textContent.trim();
+        }
+      }
+
+      tableContainer.innerHTML = tableGenerator.generate(tree);
+
+      // Restore saved role values
+      if (Object.keys(savedRoles).length > 0) {
+        window.setRoles(savedRoles);
+      }
+    }
+  }
+
+  btn.addEventListener('click', () => {
+    isTableView = !isTableView;
+
+    if (isTableView) {
+      canvasWrapper.style.display = 'none';
+      tableContainer.style.display = 'block';
+      paletteBar.style.display = 'none';
+      roleBar.style.display = 'flex';
+      btn.textContent = 'Tree View';
+      btn.style.background = '#333';
+      btn.style.color = 'white';
+      // Swap export buttons: show table, hide tree
+      copyTree.style.display = 'none';
+      downloadTree.style.display = 'none';
+      copyTable.style.display = 'inline-block';
+      downloadTable.style.display = 'inline-block';
+      refreshTable();
+    } else {
+      canvasWrapper.style.display = '';
+      tableContainer.style.display = 'none';
+      paletteBar.style.display = '';
+      roleBar.style.display = 'none';
+      btn.textContent = 'Table View';
+      btn.style.background = '';
+      btn.style.color = '';
+      // Swap export buttons: show tree, hide table
+      copyTree.style.display = 'inline-block';
+      downloadTree.style.display = 'inline-block';
+      copyTable.style.display = 'none';
+      downloadTable.style.display = 'none';
+      // Refresh canvas after re-showing
+      setTimeout(() => canvasManager.canvas.requestRenderAll(), 50);
+    }
+  });
+
+  // Regenerate table when tree changes (debounced)
+  tree.addEventListener((event, data) => {
+    if (isTableView) {
+      clearTimeout(refreshTimeout);
+      refreshTimeout = setTimeout(refreshTable, 150);
+    }
+  });
+}
+
+/**
  * Setup export buttons
  */
 function setupExportButtons(canvasManager) {
@@ -350,3 +440,105 @@ function generateShareURL(tree) {
 
 // Export for potential external use
 window.generateShareURL = generateShareURL;
+
+/**
+ * Export table as PNG via html2canvas
+ * @param {number} scale - Resolution multiplier (default 4)
+ * @returns {Promise<string>} data URL
+ */
+async function exportTablePNG(scale = 4) {
+  const tableContainer = document.getElementById('table-container');
+  const table = tableContainer.querySelector('.labeling-table');
+  if (!table) throw new Error('No table to export');
+
+  const canvas = await html2canvas(table, {
+    scale: scale,
+    backgroundColor: '#ffffff',
+    logging: false,
+  });
+  return canvas.toDataURL('image/png');
+}
+
+/**
+ * Setup table export buttons (copy + download)
+ */
+function setupTableExportButtons() {
+  const statusEl = document.getElementById('export-status');
+  const setStatus = (msg) => { statusEl.textContent = msg || ''; };
+
+  const flashSuccess = () => {
+    const container = document.getElementById('table-container');
+    container.style.transition = 'box-shadow 0.2s ease';
+    container.style.boxShadow = '0 0 20px 5px rgba(0, 200, 100, 0.5)';
+    setTimeout(() => { container.style.boxShadow = ''; }, 300);
+  };
+
+  // Copy table as PNG to clipboard
+  document.getElementById('copy-table').addEventListener('click', async () => {
+    try {
+      setStatus('Copying table...');
+      const dataURL = await exportTablePNG(4);
+      const res = await fetch(dataURL);
+      const blob = await res.blob();
+
+      await navigator.clipboard.write([
+        new ClipboardItem({ 'image/png': blob })
+      ]);
+
+      flashSuccess();
+      setStatus('Table copied!');
+    } catch (err) {
+      console.error('Table copy failed:', err);
+      try {
+        const dataURL = await exportTablePNG(4);
+        window.open(dataURL, '_blank');
+        setStatus('Opened in new tab');
+      } catch (e2) {
+        setStatus('Copy failed');
+      }
+    }
+    setTimeout(() => setStatus(''), 2500);
+  });
+
+  // Download table as PNG
+  document.getElementById('download-table').addEventListener('click', async () => {
+    try {
+      setStatus('Preparing table...');
+      const dataURL = await exportTablePNG(4);
+
+      const a = document.createElement('a');
+      a.href = dataURL;
+      a.download = 'labeling-table.png';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+
+      flashSuccess();
+      setStatus('Table downloaded!');
+    } catch (err) {
+      console.error('Table download failed:', err);
+      setStatus('Download failed');
+    }
+    setTimeout(() => setStatus(''), 2500);
+  });
+}
+
+/**
+ * Set role labels programmatically.
+ * Called by Playwright or other automation to fill in role cells.
+ * @param {Object} roles - { "1": { "0": "Subject", "1": "Predicate" }, "2": { "1": "Direct Object" } }
+ *   Keys are level numbers (strings), values are objects mapping column index (string) to role label.
+ */
+window.setRoles = function(roles) {
+  const cells = document.querySelectorAll('#table-container td.role[contenteditable="true"]');
+  for (const cell of cells) {
+    const level = cell.getAttribute('data-level');
+    const col = cell.getAttribute('data-col');
+    if (roles[level] && roles[level][col]) {
+      cell.textContent = roles[level][col];
+    }
+  }
+};
+
+// Expose table export for Playwright
+window.exportTablePNG = exportTablePNG;
